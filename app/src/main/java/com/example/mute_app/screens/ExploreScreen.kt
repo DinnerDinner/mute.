@@ -1,5 +1,5 @@
 package com.example.mute_app.screens
-
+//testing
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -792,7 +792,7 @@ private fun ErrorState(
             Button(
                 onClick = onRetry,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFD2691E) // !!!sdzdsfBetter button color
+                    containerColor = Color(0xFFD2691E) // Better button color
                 ),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.shadow(
