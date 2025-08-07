@@ -16,33 +16,32 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Wellness-focused color scheme
 private val WellnessLightScheme = lightColorScheme(
-    primary = Color(0xFFFF9AA2), // Coral pink
-    secondary = Color(0xFF87CEEB), // Sky blue
-    tertiary = Color(0xFF98FB98), // Pale green
-    background = Color(0xFFF8F6F0), // Warmer, less white background
-    surface = Color(0xFFFFE5E5), // Soft pink surface
-    surfaceVariant = Color(0xFFE8F4F8), // Light sky blue variant
+    primary = Color(0xFFFF9AA2),
+    secondary = Color(0xFF87CEEB),
+    tertiary = Color(0xFF98FB98),
+    background = Color(0xFFF8F6F0),
+    surface = Color(0xFFFFE5E5),
+    surfaceVariant = Color(0xFFE8F4F8),
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color(0xFF2D2D2D),
-    onBackground = Color(0xFF2D2D2D), // Soft dark text
+    onBackground = Color(0xFF2D2D2D),
     onSurface = Color(0xFF2D2D2D),
     onSurfaceVariant = Color(0xFF4A4A4A),
 )
 
 private val WellnessDarkScheme = darkColorScheme(
-    primary = Color(0xFFE68C3A), // Warm orange
-    secondary = Color(0xFF9AA085), // Lighter cactus
-    tertiary = Color(0xFF8B4B5C), // Lighter burgundy
-    background = Color(0xFF1F1E1A), // Dark warm background
-    surface = Color(0xFF2A2926), // Dark surface
-    surfaceVariant = Color(0xFF3A3935), // Dark variant
+    primary = Color(0xFFE68C3A),
+    secondary = Color(0xFF9AA085),
+    tertiary = Color(0xFF8B4B5C),
+    background = Color(0xFF1F1E1A),
+    surface = Color(0xFF2A2926),
+    surfaceVariant = Color(0xFF3A3935),
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color.White,
-    onBackground = Color(0xFFE8E3D3), // Warm light text
+    onBackground = Color(0xFFE8E3D3),
     onSurface = Color(0xFFE8E3D3),
     onSurfaceVariant = Color(0xFFC8C3B3),
 )
@@ -50,7 +49,6 @@ private val WellnessDarkScheme = darkColorScheme(
 @Composable
 fun MuteAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color disabled for consistent wellness branding
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
@@ -67,7 +65,6 @@ fun MuteAppTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // Set status bar to match background
             window.statusBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }

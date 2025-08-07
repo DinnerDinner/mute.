@@ -1,5 +1,5 @@
 package com.example.mute_app.screens
-//testing
+
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -14,12 +14,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,42 +27,39 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mute_app.viewmodels.ExploreViewModel
 import com.example.mute_app.viewmodels.ExploreCard
 import kotlinx.coroutines.delay
-import kotlin.math.*
 
-// Enhanced wellness color palette with better contrast
+// Professional wellness color palette with royal tones
 private val WellnessColors = listOf(
-    0xFFF8F6F0, // Warm cream
-    0xFFE8E3D8, // Light sage
-    0xFFD4C8B8, // Warm beige
-    0xFFE2D5C7, // Soft tan
-    0xFFF0E6DA, // Peachy cream
-    0xFFE6DDD4, // Mushroom
-    0xFFDFD3C3, // Sandy beige
-    0xFFEAE0D5  // Warm ivory
+    0xFFF0FBF0, // Aloe - soft sage green
+    0xFFF5F3E9, // Desert Sand - warm beige
+    0xFFEBE9E0, // Mist - light gray-beige
+    0xFFE1E5D7, // Teak - warm brown-green
+    0xFFCDC8BD, // Army - muted olive
+    0xFF817C68, // Cactus - deeper sage
+    0xFFDFD3C3, // Warm cream
+    0xFFD4C4A8  // Sandy beige
 )
 
-// Better contrast accent colors - not too dark!
 private val AccentColors = listOf(
-    0xFFD2691E, // Chocolate orange
-    0xFF8B4A3D, // Warm brown
-    0xFF6B7B4F, // Sage green
-    0xFFB8860B, // Dark goldenrod
-    0xFF8FBC8F, // Dark sea green
-    0xFFCD853F, // Peru
-    0xFFA0522D, // Sienna
-    0xFF9ACD32  // Yellow green
+    0xFFE68C3A, // Warm orange
+    0xFF60212E, // Deep burgundy
+    0xFF4A5D23, // Forest green
+    0xFF8B4513, // Saddle brown
+    0xFF556B2F, // Dark olive
+    0xFF8B4A42, // Dark salmon
+    0xFF6B4423, // Dark wood
+    0xFF5D4E37  // Dark tan
 )
 
-// Aura colors that match accent colors perfectly - professional and royal
 private val AuraColors = listOf(
-    0xFFD2691E, // Matches chocolate orange accent
-    0xFF8B4A3D, // Matches warm brown accent
-    0xFF6B7B4F, // Matches sage green accent
-    0xFFB8860B, // Matches dark goldenrod accent
-    0xFF8FBC8F, // Matches dark sea green accent
-    0xFFCD853F, // Matches peru accent
-    0xFFA0522D, // Matches sienna accent
-    0xFF9ACD32  // Matches yellow green accent
+    0xFFE68C3A, // Warm orange glow
+    0xFF60212E, // Deep burgundy glow
+    0xFF4A5D23, // Forest green glow
+    0xFF8B4513, // Saddle brown glow
+    0xFF556B2F, // Dark olive glow
+    0xFF8B4A42, // Dark salmon glow
+    0xFF6B4423, // Dark wood glow
+    0xFF5D4E37  // Dark tan glow
 )
 
 @Composable
@@ -202,154 +197,6 @@ private fun CardPattern(
         }
     }
 }
-
-// COMPLETELY NEW ROYAL AURA RESONANCE SYSTEM - REBUILT FROM SCRATCH
-@Composable
-private fun RoyalAuraResonance(
-    auraColor: Color,
-    intensity: Float,
-    modifier: Modifier = Modifier
-) {
-    // Professional royal aura that actually appears and is visible but subtle
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val centerX = size.width / 2f
-        val centerY = size.height / 2f
-
-        // Much smaller, professional radius - no more circus
-        val baseRadius = minOf(size.width, size.height) * 0.45f // Smaller base
-        val maxRadius = baseRadius * (1.0f + intensity * 0.15f) // Subtle growth
-
-        // GUARANTEED VISIBLE base alpha - never invisible
-        val baseAlpha = 0.25f + (intensity * 0.15f) // Always at least 25% visible
-
-        // Professional royal glow layers - 3 concentric rings
-        for (ring in 0..2) {
-            val ringMultiplier = 1f - (ring * 0.25f) // 1.0, 0.75, 0.5
-            val currentRadius = maxRadius * ringMultiplier
-            val currentAlpha = baseAlpha * (1f - ring * 0.3f) // Fade outward
-
-            // Ensure minimum visibility
-            if (currentAlpha > 0.05f && currentRadius > 10f) {
-                // Main royal glow ring
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            auraColor.copy(alpha = currentAlpha * 0.8f), // Strong center
-                            auraColor.copy(alpha = currentAlpha * 0.5f), // Medium middle
-                            auraColor.copy(alpha = currentAlpha * 0.2f), // Soft edge
-                            Color.Transparent // Fade to nothing
-                        ),
-                        radius = currentRadius,
-                        center = androidx.compose.ui.geometry.Offset(centerX, centerY)
-                    ),
-                    radius = currentRadius,
-                    center = androidx.compose.ui.geometry.Offset(centerX, centerY)
-                )
-
-                // Inner concentrated royal core - MORE VISIBLE
-                val coreRadius = currentRadius * 0.6f
-                val coreAlpha = currentAlpha * 1.3f // Brighter core
-
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            auraColor.copy(alpha = coreAlpha.coerceAtMost(0.6f)), // Bright center
-                            auraColor.copy(alpha = coreAlpha * 0.7f), // Medium fade
-                            auraColor.copy(alpha = coreAlpha * 0.3f), // Outer fade
-                            Color.Transparent
-                        ),
-                        radius = coreRadius,
-                        center = androidx.compose.ui.geometry.Offset(centerX, centerY)
-                    ),
-                    radius = coreRadius,
-                    center = androidx.compose.ui.geometry.Offset(centerX, centerY)
-                )
-            }
-        }
-
-        // Subtle shimmer effect - NO LASER BEAMS, just gentle shimmer
-        val shimmerCount = 6 // Fewer, more elegant
-        val shimmerRadius = maxRadius * 0.8f
-        val shimmerAlpha = baseAlpha * 0.4f // Subtle shimmer
-
-        if (shimmerAlpha > 0.03f) {
-            for (shimmer in 0 until shimmerCount) {
-                val angle = (shimmer * 60f) + (intensity * 20f) // Gentle rotation
-                val shimmerLength = shimmerRadius * 0.3f // Much shorter
-
-                val startRadius = shimmerRadius * 0.7f
-                val endRadius = startRadius + shimmerLength
-
-                val startX = centerX + cos(angle * PI / 180f).toFloat() * startRadius
-                val startY = centerY + sin(angle * PI / 180f).toFloat() * startRadius
-                val endX = centerX + cos(angle * PI / 180f).toFloat() * endRadius
-                val endY = centerY + sin(angle * PI / 180f).toFloat() * endRadius
-
-                // Gentle shimmer rays - NOT laser beams
-                drawLine(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            auraColor.copy(alpha = shimmerAlpha * 0.8f),
-                            auraColor.copy(alpha = shimmerAlpha * 0.4f),
-                            Color.Transparent
-                        ),
-                        start = androidx.compose.ui.geometry.Offset(startX, startY),
-                        end = androidx.compose.ui.geometry.Offset(endX, endY)
-                    ),
-                    start = androidx.compose.ui.geometry.Offset(startX, startY),
-                    end = androidx.compose.ui.geometry.Offset(endX, endY),
-                    strokeWidth = 2.dp.toPx(), // Much thinner
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                )
-            }
-        }
-
-        // Elegant pulsing outline - royal finishing touch
-        val outlineAlpha = baseAlpha * 0.6f
-        if (outlineAlpha > 0.05f) {
-            drawCircle(
-                color = auraColor.copy(alpha = outlineAlpha),
-                radius = maxRadius,
-                center = androidx.compose.ui.geometry.Offset(centerX, centerY),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = 1.5.dp.toPx()
-                )
-            )
-        }
-    }
-}
-
-// NEW PROFESSIONAL AURA ANIMATION SYSTEM - REBUILT FROM SCRATCH
-@Composable
-private fun useRoyalAuraAnimation(cardIndex: Int): Float {
-    var auraIntensity by remember { mutableFloatStateOf(0.4f) } // Start at 40% - always visible
-
-    // Staggered, professional animation cycles
-    LaunchedEffect(cardIndex) {
-        delay(cardIndex * 400L) // Staggered start - more elegant
-
-        while (true) {
-            // Gentle rise phase - professional
-            repeat(25) { step ->
-                auraIntensity = 0.4f + (step / 24f) * 0.35f // 40% to 75%
-                delay(60) // Smooth transition
-            }
-
-            delay(800) // Hold at peak - elegant pause
-
-            // Gentle fall phase - royal descent
-            repeat(30) { step ->
-                auraIntensity = 0.75f - (step / 29f) * 0.35f // 75% back to 40%
-                delay(50) // Smooth descent
-            }
-
-            delay(1200 + (cardIndex * 200L)) // Varied rest period per card
-        }
-    }
-
-    return auraIntensity
-}
-
 @Composable fun ExploreScreen(
     viewModel: ExploreViewModel = hiltViewModel()
 ) {
@@ -359,7 +206,7 @@ private fun useRoyalAuraAnimation(cardIndex: Int): Float {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black) // Warmer, more sophisticated background
+            .background(Color(0xFFE8E3D3)) // Warmer, more sophisticated background
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -470,8 +317,8 @@ private fun ExploreCardGrid(
 ) {
     LazyColumn(
         state = listState,
-        verticalArrangement = Arrangement.spacedBy(16.dp), // Reduced spacing - less spaced out
-        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         // Group cards into pairs for dual-column layout
@@ -519,7 +366,7 @@ private fun WellnessCardRow(
         )
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             // First card
@@ -555,15 +402,11 @@ private fun WellnessCard(
     var isPressed by remember { mutableStateOf(false) }
     var isHovered by remember { mutableStateOf(false) }
 
-    // Get colors from wellness palette - MATCHING aura colors properly
+    // Get colors from wellness palette
     val primaryColor = Color(WellnessColors[colorIndex % WellnessColors.size])
     val accentColor = Color(AccentColors[colorIndex % AccentColors.size])
-    val auraColor = Color(AuraColors[colorIndex % AuraColors.size]) // Perfect match now!
 
-    // Professional aura animation - always visible, never disappears
-    val auraIntensity = useRoyalAuraAnimation(colorIndex)
-
-    // Idle jiggle animation - more subtle now
+    // Idle jiggle animation
     var jigglePhase by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
@@ -577,7 +420,7 @@ private fun WellnessCard(
     }
 
     val jiggleOffset by animateFloatAsState(
-        targetValue = jigglePhase * 1.5f, // Reduced jiggle
+        targetValue = jigglePhase * 2f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
@@ -585,12 +428,30 @@ private fun WellnessCard(
         label = "jiggle"
     )
 
+    // Aura resonance animation
+    var auraPhase by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            auraPhase = 1f
+            delay(4000)
+            auraPhase = 0f
+            delay(3000)
+        }
+    }
+
+    val auraIntensity by animateFloatAsState(
+        targetValue = auraPhase * 0.3f,
+        animationSpec = tween(4000, easing = FastOutSlowInEasing),
+        label = "aura"
+    )
+
     // Gentle animations
     val scale by animateFloatAsState(
         targetValue = when {
-            isPressed -> 0.95f
+            isPressed -> 0.92f
             isHovered -> 1.02f
-            else -> 1f + (jigglePhase * 0.005f) // More subtle
+            else -> 1f + (jigglePhase * 0.01f)
         },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -601,7 +462,7 @@ private fun WellnessCard(
 
     // Subtle rotation with jiggle
     val rotation by animateFloatAsState(
-        targetValue = if (isPressed) (-1..1).random().toFloat() else jiggleOffset * 0.3f, // Less rotation
+        targetValue = if (isPressed) (-1..1).random().toFloat() else jiggleOffset * 0.5f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
@@ -617,27 +478,37 @@ private fun WellnessCard(
         }
     }
 
-    // THE MAIN CARD WITH PROFESSIONAL ROYAL AURA
+    // Resonating aura effect
     Box(
         modifier = modifier
-            .aspectRatio(1.4f) // Slightly increased card size
-            .height(130.dp) // Increased from 120dp
+            .aspectRatio(1.33f)
+            .height(120.dp)
     ) {
-        // PROFESSIONAL ROYAL AURA RESONANCE - ALWAYS VISIBLE AND MATCHING
-        RoyalAuraResonance(
-            auraColor = auraColor, // Perfect color match to accent
-            intensity = auraIntensity, // Always visible, never hidden
-            modifier = Modifier.fillMaxSize()
+        // Aura background
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(4.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = auraIntensity),
+                            accentColor.copy(alpha = auraIntensity * 0.5f),
+                            Color.Transparent
+                        ),
+                        radius = 150f
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                )
         )
 
         Card(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(4.dp) // Reduced aura space - more compact
                 .shadow(
-                    elevation = 10.dp,
+                    elevation = 8.dp,
                     shape = RoundedCornerShape(16.dp),
-                    spotColor = auraColor.copy(alpha = 0.3f) // Matching shadow color
+                    spotColor = primaryColor.copy(alpha = 0.2f)
                 )
                 .graphicsLayer {
                     scaleX = scale
@@ -654,7 +525,7 @@ private fun WellnessCard(
                     onClickLabel = "Open ${card.title}"
                 ),
             elevation = CardDefaults.cardElevation(
-                defaultElevation = 8.dp
+                defaultElevation = 6.dp
             ),
             colors = CardDefaults.cardColors(
                 containerColor = primaryColor
@@ -668,8 +539,8 @@ private fun WellnessCard(
                         Brush.radialGradient(
                             colors = listOf(
                                 primaryColor,
-                                primaryColor.copy(alpha = 0.9f),
-                                accentColor.copy(alpha = 0.15f)
+                                primaryColor.copy(alpha = 0.8f),
+                                accentColor.copy(alpha = 0.1f)
                             ),
                             radius = 200f
                         )
@@ -690,21 +561,19 @@ private fun WellnessCard(
                         .align(Alignment.TopEnd)
                         .size(8.dp)
                         .background(
-                            accentColor.copy(alpha = 0.5f),
+                            accentColor.copy(alpha = 0.4f),
                             shape = RoundedCornerShape(4.dp)
                         )
                 )
 
-                // ENHANCED TEXT WITH BETTER FONT
+                // Professional, readable text with rounder font
                 Text(
                     text = card.title,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.W600,
-                    fontFamily = FontFamily.SansSerif,
-                    color = Color(0xFF2A2A2A),
+                    fontSize = 18.sp, // Increased text size
+                    fontWeight = FontWeight.W500, // Rounder weight
+                    color = Color(0xFF2D2D2D),
                     textAlign = TextAlign.Center,
-                    lineHeight = 23.sp,
-                    letterSpacing = 0.3.sp,
+                    lineHeight = 22.sp,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
@@ -782,9 +651,8 @@ private fun ErrorState(
             Text(
                 text = "Something went wrong",
                 fontSize = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = FontFamily.SansSerif,
-                color = Color(0xFF8B4A3D).copy(alpha = 0.8f) // Better error color
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF60212E).copy(alpha = 0.8f)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -792,7 +660,7 @@ private fun ErrorState(
             Button(
                 onClick = onRetry,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFD2691E) // Better button color
+                    containerColor = Color(0xFFE68C3A)
                 ),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.shadow(
@@ -803,8 +671,7 @@ private fun ErrorState(
                 Text(
                     text = "Try Again",
                     color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Medium,
                     fontSize = 16.sp,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
