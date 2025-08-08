@@ -178,7 +178,7 @@ private fun QuickBlockWidget(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Quick Block",
+                        text = "break now.",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
