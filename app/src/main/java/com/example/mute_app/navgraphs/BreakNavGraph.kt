@@ -114,22 +114,22 @@ fun BreakNavGraph(
             )
         }
 
-//        composable(BreakDestination.Applications.route) {
-//            println("DEBUG: Applications route composable called")
-//            ApplicationsScreen(
-//                onBackClick = {
-//                    navController.popBackStack()
-//                }
-//            )
-//        }
-//
-//        composable(BreakDestination.Websites.route) {
-//            println("DEBUG: Websites route composable called")
-//            WebsitesScreen(
-//                onBackClick = {
-//                    navController.popBackStack()
-//                }
-//            )
-//        }
+        composable(BreakDestination.Applications.route) {
+            println("DEBUG: Applications route composable called")
+            ApplicationsScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(BreakDestination.Websites.route) {
+            println("DEBUG: Websites route composable called")
+            WebsitesScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
     }
 }
