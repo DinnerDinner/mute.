@@ -1,4 +1,4 @@
-package com.example.mute_app.viewmodels.explore
+package com.example.mute_app.viewmodels.explore.`break`
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,7 +14,7 @@ import javax.inject.Inject
 data class BreakUiState(
     val isSessionActive: Boolean = false,
     val currentMode: String = "Focus",
-    val timeRemaining: Long = 25 * 60 * 1000L, // 25 minutes in milliseconds
+    val timeRemaining: Long = 25 * 60 * 1000L,
     val totalTime: Long = 25 * 60 * 1000L,
     val sessionsCompleted: Int = 0,
     val totalFocusTime: Long = 0, // in minutes

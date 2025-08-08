@@ -201,25 +201,54 @@ private fun CardPattern(
 @Composable
 fun ExploreScreen(
     viewModel: ExploreViewModel = hiltViewModel(),
-    onNavigateToBreak: () -> Unit
+    onNavigateToBreak: () -> Unit,
+    onNavigateToDoc: () -> Unit = {},
+    onNavigateToStats: () -> Unit = {},
+    onNavigateToEat: () -> Unit = {},
+    onNavigateToFit: () -> Unit = {},
+    onNavigateToDay: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
-    // FIXED: Proper navigation handling with clearSelection
+    // FIXED: Proper navigation handling with clearSelection for all cards
     LaunchedEffect(uiState.selectedCard) {
         println("DEBUG: ExploreScreen LaunchedEffect triggered - selectedCard: ${uiState.selectedCard?.id}")
         uiState.selectedCard?.let { card ->
             println("DEBUG: Processing card in ExploreScreen: ${card.id}")
-            when (card.id) {
-                "break" -> {
+            when (card.id.lowercase()) {
+                "break", "break." -> {
                     println("DEBUG: Calling onNavigateToBreak...")
                     onNavigateToBreak()
-                    // Clear selection after navigation
+                    viewModel.clearSelection()
+                }
+                "doc", "doc." -> {
+                    println("DEBUG: Calling onNavigateToDoc...")
+                    onNavigateToDoc()
+                    viewModel.clearSelection()
+                }
+                "stats", "stats." -> {
+                    println("DEBUG: Calling onNavigateToStats...")
+                    onNavigateToStats()
+                    viewModel.clearSelection()
+                }
+                "eat", "eat." -> {
+                    println("DEBUG: Calling onNavigateToEat...")
+                    onNavigateToEat()
+                    viewModel.clearSelection()
+                }
+                "fit", "fit." -> {
+                    println("DEBUG: Calling onNavigateToFit...")
+                    onNavigateToFit()
+                    viewModel.clearSelection()
+                }
+                "day", "day." -> {
+                    println("DEBUG: Calling onNavigateToDay...")
+                    onNavigateToDay()
                     viewModel.clearSelection()
                 }
                 else -> {
-                    println("DEBUG: Card ${card.id} ignored, clearing selection")
+                    println("DEBUG: Card ${card.id} not recognized, clearing selection")
                     viewModel.clearSelection()
                 }
             }
@@ -264,7 +293,6 @@ fun ExploreScreen(
         }
     }
 }
-
 @Composable
 private fun MinimalistHeader() {
     Column(

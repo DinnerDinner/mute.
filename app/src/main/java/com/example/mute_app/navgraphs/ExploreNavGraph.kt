@@ -14,8 +14,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mute_app.screens.ExploreScreen
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.mute_app.screens.explore.BreakScreen
+import com.example.mute_app.screens.explore.`break`.BreakScreen
 import com.example.mute_app.screens.explore.DocScreen
 import com.example.mute_app.screens.explore.StatsScreen
 import com.example.mute_app.screens.explore.EatScreen
@@ -176,11 +175,12 @@ fun ExploreNavGraph(
         }
 
         composable(ExploreDestination.Break.route) {
-            BreakScreen(
-                onBackClick = {
-                    navController.popBackStack()
-                }
-            )
+//            BreakScreen(
+//                onBackClick = {
+//                    navController.popBackStack()
+//                }
+//            )
+            BreakNavGraph(){}
         }
 
         composable(ExploreDestination.Doc.route) {
