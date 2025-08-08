@@ -167,12 +167,9 @@ fun ExploreNavGraph(
                     }
                 },
                 onNavigateToDay = {
-                    println("DEBUG: onNavigateToDay callback called!")
                     try {
                         navController.navigate(ExploreDestination.Day.route)
-                        println("DEBUG: Navigation to day successful!")
                     } catch (e: Exception) {
-                        println("DEBUG: Navigation failed - ${e.message}")
                     }
                 }
             )
