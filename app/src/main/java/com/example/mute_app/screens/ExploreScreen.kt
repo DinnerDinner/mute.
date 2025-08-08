@@ -197,11 +197,34 @@ private fun CardPattern(
         }
     }
 }
-@Composable fun ExploreScreen(
-    viewModel: ExploreViewModel = hiltViewModel()
+
+@Composable
+fun ExploreScreen(
+    viewModel: ExploreViewModel = hiltViewModel(),
+    onNavigateToBreak: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+
+    // FIXED: Proper navigation handling with clearSelection
+    LaunchedEffect(uiState.selectedCard) {
+        println("DEBUG: ExploreScreen LaunchedEffect triggered - selectedCard: ${uiState.selectedCard?.id}")
+        uiState.selectedCard?.let { card ->
+            println("DEBUG: Processing card in ExploreScreen: ${card.id}")
+            when (card.id) {
+                "break" -> {
+                    println("DEBUG: Calling onNavigateToBreak...")
+                    onNavigateToBreak()
+                    // Clear selection after navigation
+                    viewModel.clearSelection()
+                }
+                else -> {
+                    println("DEBUG: Card ${card.id} ignored, clearing selection")
+                    viewModel.clearSelection()
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -231,6 +254,7 @@ private fun CardPattern(
                             cards = uiState.cards,
                             listState = listState,
                             onCardClick = { card ->
+                                println("DEBUG: Card clicked in ExploreScreen: ${card.id}")
                                 viewModel.onCardSelected(card)
                             }
                         )

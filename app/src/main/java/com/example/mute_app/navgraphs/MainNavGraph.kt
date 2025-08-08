@@ -25,7 +25,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mute_app.screens.HomeScreen
-import com.example.mute_app.screens.ExploreScreen
 import com.example.mute_app.screens.ProfileScreen
 
 sealed class MainDestination(
@@ -52,27 +51,42 @@ fun MainNavGraph(
         MainDestination.Profile
     )
 
+    // State to control bottom bar visibility
+    var showBottomBar by remember { mutableStateOf(true) }
+
+    // DEBUG: Let's see what the actual route is
+    LaunchedEffect(currentDestination?.route) {
+        println("DEBUG: Current route = ${currentDestination?.route}")
+        println("DEBUG: Show bottom bar = $showBottomBar")
+    }
+
     Scaffold(
         bottomBar = {
-            SpectacularBottomBar(
-                destinations = destinations,
-                currentDestination = currentDestination?.route,
-                onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+            // Only show bottom bar when showBottomBar is true
+            if (showBottomBar) {
+                SpectacularBottomBar(
+                    destinations = destinations,
+                    currentDestination = currentDestination?.route,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            )
+                )
+            }
         }
     ) { paddingValues ->
         NavHost(
             navController = navController,
             startDestination = MainDestination.Home.route,
-            modifier = Modifier.padding(paddingValues),
+            modifier = Modifier.padding(
+                // Only apply bottom padding when bottom bar is visible
+                if (showBottomBar) paddingValues else PaddingValues(0.dp)
+            ),
             enterTransition = {
                 slideInHorizontally(
                     initialOffsetX = { fullWidth -> fullWidth },
@@ -99,12 +113,20 @@ fun MainNavGraph(
             }
         ) {
             composable(MainDestination.Home.route) {
+                LaunchedEffect(Unit) { showBottomBar = true }
                 HomeScreen()
             }
             composable(MainDestination.Explore.route) {
-                ExploreScreen()
+                LaunchedEffect(Unit) { showBottomBar = true }
+                // Pass callback to control bottom bar visibility
+                ExploreNavGraph(
+                    onBottomBarVisibilityChanged = { visible ->
+                        showBottomBar = visible
+                    }
+                )
             }
             composable(MainDestination.Profile.route) {
+                LaunchedEffect(Unit) { showBottomBar = true }
                 ProfileScreen()
             }
         }

@@ -91,16 +91,22 @@ class ExploreViewModel @Inject constructor() : ViewModel() {
                 isLoading = false,
                 cards = cards
             )
+
+            println("DEBUG: Cards loaded - ${cards.size} cards")
         }
     }
 
     fun onCardSelected(card: ExploreCard) {
+        println("DEBUG: onCardSelected called - Card ID: ${card.id}, Title: ${card.title}")
         _uiState.value = _uiState.value.copy(selectedCard = card)
-        // TODO: Navigate to specific card's navigation graph
+        println("DEBUG: State updated - selectedCard is now: ${_uiState.value.selectedCard?.id}")
     }
 
+    // UNCOMMENTED: This method is now needed
     fun clearSelection() {
+        println("DEBUG: clearSelection called")
         _uiState.value = _uiState.value.copy(selectedCard = null)
+        println("DEBUG: Selection cleared - selectedCard is now: ${_uiState.value.selectedCard}")
     }
 
     fun refreshCards() {

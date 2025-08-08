@@ -5,21 +5,22 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mute_app.screens.ExploreScreen
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mute_app.screens.explore.BreakScreen
 import com.example.mute_app.screens.explore.DocScreen
+import com.example.mute_app.screens.explore.StatsScreen
 import com.example.mute_app.screens.explore.EatScreen
 import com.example.mute_app.screens.explore.FitScreen
 import com.example.mute_app.screens.explore.DayScreen
-import com.example.mute_app.screens.explore.StatsScreen
 import com.example.mute_app.viewmodels.ExploreViewModel
 
 sealed class ExploreDestination(val route: String) {
@@ -35,8 +36,27 @@ sealed class ExploreDestination(val route: String) {
 @Composable
 fun ExploreNavGraph(
     modifier: Modifier = Modifier,
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    onBottomBarVisibilityChanged: (Boolean) -> Unit = {} // Callback to control main bottom bar
 ) {
+
+    // Monitor current destination to control bottom bar visibility
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination?.route
+
+    // Control bottom bar visibility based on current route
+    LaunchedEffect(currentDestination) {
+        when (currentDestination) {
+            ExploreDestination.Main.route -> onBottomBarVisibilityChanged(true)
+            ExploreDestination.Break.route,
+            ExploreDestination.Doc.route,
+            ExploreDestination.Stats.route,
+            ExploreDestination.Eat.route,
+            ExploreDestination.Fit.route,
+            ExploreDestination.Day.route -> onBottomBarVisibilityChanged(false)
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = ExploreDestination.Main.route,
@@ -112,93 +132,97 @@ fun ExploreNavGraph(
     ) {
         composable(ExploreDestination.Main.route) {
             val viewModel: ExploreViewModel = hiltViewModel()
-            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
 
             ExploreScreen(
-                viewModel = viewModel
-            )
-
-            // Handle navigation when card is selected
-            LaunchedEffect(uiState.selectedCard) {
-                uiState.selectedCard?.let { card ->
-                    when (card.id) {
-                        "break" -> {
-                            navController.navigate(ExploreDestination.Break.route)
-                            viewModel.clearSelection()
-                        }
-                        "doc" -> {
-                            navController.navigate(ExploreDestination.Doc.route)
-                            viewModel.clearSelection()
-                        }
-                        "stats" -> {
-                            navController.navigate(ExploreDestination.Stats.route)
-                            viewModel.clearSelection()
-                        }
-                        "eat" -> {
-                            navController.navigate(ExploreDestination.Eat.route)
-                            viewModel.clearSelection()
-                        }
-                        "fit" -> {
-                            navController.navigate(ExploreDestination.Fit.route)
-                            viewModel.clearSelection()
-                        }
-                        "day" -> {
-                            navController.navigate(ExploreDestination.Day.route)
-                            viewModel.clearSelection()
-                        }
+                viewModel = viewModel,
+                onNavigateToBreak = {
+                    try {
+                        navController.navigate(ExploreDestination.Break.route)
+                    } catch (e: Exception) {
+                    }
+                },
+                onNavigateToDoc = {
+                    try {
+                        navController.navigate(ExploreDestination.Doc.route)
+                    } catch (e: Exception) {
+                    }
+                },
+                onNavigateToStats = {
+                    try {
+                        navController.navigate(ExploreDestination.Stats.route)
+                    } catch (e: Exception) {
+                    }
+                },
+                onNavigateToEat = {
+                    try {
+                        navController.navigate(ExploreDestination.Eat.route)
+                    } catch (e: Exception) {
+                    }
+                },
+                onNavigateToFit = {
+                    try {
+                        navController.navigate(ExploreDestination.Fit.route)
+                    } catch (e: Exception) {
+                    }
+                },
+                onNavigateToDay = {
+                    println("DEBUG: onNavigateToDay callback called!")
+                    try {
+                        navController.navigate(ExploreDestination.Day.route)
+                        println("DEBUG: Navigation to day successful!")
+                    } catch (e: Exception) {
+                        println("DEBUG: Navigation failed - ${e.message}")
                     }
                 }
-            }
+            )
         }
 
         composable(ExploreDestination.Break.route) {
             BreakScreen(
-                onBackClick = { navController.popBackStack() }
+                onBackClick = {
+                    navController.popBackStack()
+                }
             )
         }
 
         composable(ExploreDestination.Doc.route) {
-            // Temporary placeholder screen for Doc
             DocScreen(
-                title = "doc.",
-                subtitle = "Personal Medical & Mental Health Bot",
-                onBackClick = { navController.popBackStack() }
+                onBackClick = {
+                    navController.popBackStack()
+                }
             )
         }
 
         composable(ExploreDestination.Stats.route) {
-            // Temporary placeholder screen for Stats
             StatsScreen(
-                title = "stats.",
-                subtitle = "Personal Analytics & Emotional Pulse",
-                onBackClick = { navController.popBackStack() }
+                onBackClick = {
+                    navController.popBackStack()
+                }
             )
         }
 
         composable(ExploreDestination.Eat.route) {
-            // Temporary placeholder screen for Eat
             EatScreen(
-                title = "eat.",
-                subtitle = "AI-Powered Smart Cooking Assistant",
-                onBackClick = { navController.popBackStack() }
+                onBackClick = {
+                    navController.popBackStack()
+                }
             )
         }
 
         composable(ExploreDestination.Fit.route) {
-            // Temporary placeholder screen for Fit
             FitScreen(
-                title = "fit.",
-                subtitle = "Personalized Fitness Companion",
-                onBackClick = { navController.popBackStack() }
+                onBackClick = {
+                    navController.popBackStack()
+                }
             )
         }
 
         composable(ExploreDestination.Day.route) {
-            // Temporary placeholder screen for Day
             DayScreen(
-                title = "day.",
-                subtitle = "Lifestyle Routine & Micro Habits Manager",
-                onBackClick = { navController.popBackStack() }
+                onBackClick = {
+                    navController.popBackStack()
+                }
             )
         }
     }
