@@ -34,7 +34,7 @@ fun BlocklistScreen(
 
     // Sample blocked websites for display (from your second image)
     val blockedWebsites = remember {
-        listOf("4chan.org", "reddit.com", "youtube.com")
+        listOf("instagram.com", "reddit.com", "youtube.com")
     }
 
     Box(
