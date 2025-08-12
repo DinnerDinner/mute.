@@ -267,6 +267,7 @@ private fun PermissionsSetupScreen(
                     onGrant = onRequestAccessibilityPermission
                 )
 
+
                 Spacer(modifier = Modifier.height(32.dp))
 
                 // Refresh button
