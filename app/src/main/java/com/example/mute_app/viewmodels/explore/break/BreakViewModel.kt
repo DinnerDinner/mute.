@@ -416,7 +416,7 @@ class BreakViewModel @Inject constructor(
 
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    error = "Failed to disable focus mode: ${e.message}",
+                    error = "!!Failed to disable focus mode: ${e.message}!!",
                     isFocusModeEnabled = true
                 )
             }
