@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -21,20 +22,37 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.collectAsState
+import com.example.mute_app.viewmodels.explore.`break`.BlocklistViewModel
 import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.graphicsLayer
+
+// Wellness theme for blocklist
+private val BlocklistWellnessColors = object {
+    val Primary = Color(0xFF2E7D5A)
+    val Secondary = Color(0xFF4CAF50)
+    val Accent = Color(0xFF81C784)
+    val Success = Color(0xFF66BB6A)
+    val Background = Color(0xFF1B2E1F)
+    val Surface = Color(0xFF243428)
+    val OnSurface = Color(0xFFE8F5E8)
+    val CardSurface = Color(0xFF2D3E31)
+    val Glow = Color(0xFF4CAF50)
+}
 
 @Composable
 fun BlocklistScreen(
     onNavigateToApplications: () -> Unit,
     onNavigateToWebsites: () -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    viewModel: BlocklistViewModel = hiltViewModel()
 ) {
-    var selectedAppsCount by remember { mutableStateOf(0) }
-    var selectedWebsitesCount by remember { mutableStateOf(3) } // Default from your image
+    val uiState by viewModel.uiState.collectAsState()
 
-    // Sample blocked websites for display (from your second image)
-    val blockedWebsites = remember {
-        listOf("instagram.com", "reddit.com", "youtube.com")
+    // Refresh data when screen appears
+    LaunchedEffect(Unit) {
+        viewModel.refreshCounts()
     }
 
     Box(
@@ -43,8 +61,8 @@ fun BlocklistScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF0A0A0A), // Deep black
-                        Color(0xFF1A1A2E)  // Dark navy
+                        BlocklistWellnessColors.Background,
+                        BlocklistWellnessColors.Primary.copy(alpha = 0.2f)
                     )
                 )
             )
@@ -54,101 +72,128 @@ fun BlocklistScreen(
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Text(
-                    text = "Quick Block",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-
-                IconButton(onClick = { /* TODO: Settings */ }) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            // Modern header
+            ModernBlocklistHeader(onBackClick = onBackClick)
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Blocklist section header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Blocklist",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Icon(
-                    Icons.Default.ExpandMore,
-                    contentDescription = "Expand",
-                    tint = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Text(
-                text = "Select apps, webs or keywords you want to block.",
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 4.dp)
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Applications Section
-            BlocklistCategoryCard(
-                title = "Applications",
-                count = selectedAppsCount,
-                icon = Icons.Default.Apps,
-                onClick = onNavigateToApplications
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Websites Section (with preview chips like in your second image)
-            WebsitesCategoryCard(
-                count = selectedWebsitesCount,
-                blockedWebsites = blockedWebsites,
-                onClick = onNavigateToWebsites
+            // Category cards
+            CategorySection(
+                appsCount = uiState.selectedAppsCount,
+                websitesCount = uiState.selectedWebsitesCount,
+                blockedWebsites = uiState.blockedWebsites,
+                onNavigateToApplications = onNavigateToApplications,
+                onNavigateToWebsites = onNavigateToWebsites
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // TODO: Add save/apply button here later
+            // Summary footer
+            if (uiState.selectedAppsCount > 0 || uiState.selectedWebsitesCount > 0) {
+                SummaryFooter(
+                    appsCount = uiState.selectedAppsCount,
+                    websitesCount = uiState.selectedWebsitesCount
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun BlocklistCategoryCard(
-    title: String,
-    count: Int,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
+private fun ModernBlocklistHeader(onBackClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onBackClick,
+            modifier = Modifier
+                .background(
+                    BlocklistWellnessColors.Surface.copy(alpha = 0.3f),
+                    CircleShape
+                )
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Close",
+                tint = BlocklistWellnessColors.OnSurface
+            )
+        }
+
+        Text(
+            text = "blocklist.",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = BlocklistWellnessColors.OnSurface
+        )
+
+        IconButton(
+            onClick = { /* TODO: Settings */ },
+            modifier = Modifier
+                .background(
+                    BlocklistWellnessColors.Surface.copy(alpha = 0.3f),
+                    CircleShape
+                )
+        ) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = BlocklistWellnessColors.OnSurface.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategorySection(
+    appsCount: Int,
+    websitesCount: Int,
+    blockedWebsites: List<String>,
+    onNavigateToApplications: () -> Unit,
+    onNavigateToWebsites: () -> Unit
 ) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Apps category - SIMPLIFIED
+        AnimatedCategoryCard(
+            title = "Applications",
+            description = "Block distracting mobile apps",
+            icon = Icons.Default.Apps,
+            count = appsCount,
+            onClick = onNavigateToApplications,
+            animationDelay = 0L
+        )
+
+        // Websites category - SIMPLIFIED
+        AnimatedCategoryCard(
+            title = "Websites",
+            description = "Block distracting websites",
+            icon = Icons.Default.Language,
+            count = websitesCount,
+            onClick = onNavigateToWebsites,
+            animationDelay = 150L
+        )
+    }
+}
+
+@Composable
+private fun AnimatedCategoryCard(
+    title: String,
+    description: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    count: Int,
+    onClick: () -> Unit,
+    animationDelay: Long
+) {
+    var isVisible by remember { mutableStateOf(false) }
     var isPressed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(animationDelay)
+        isVisible = true
+    }
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.98f else 1f,
@@ -156,199 +201,181 @@ private fun BlocklistCategoryCard(
         label = "card_scale"
     )
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(80.dp)
-            .clickable {
-                isPressed = true
-                onClick()
-            }
-            .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(16.dp),
-                spotColor = Color.Black.copy(alpha = 0.4f)
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = slideInVertically(
+            initialOffsetY = { it / 2 },
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
             )
-            .animateContentSize(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A3E).copy(alpha = 0.8f)
-        )
+        ) + fadeIn(animationSpec = tween(400))
     ) {
-        LaunchedEffect(isPressed) {
-            if (isPressed) {
-                delay(150)
-                isPressed = false
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = title,
-                    tint = Color(0xFF00BCD4),
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Count indicator
-                if (count > 0) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                Color(0xFF4CAF50),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = count.toString(),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = "Open",
-                    tint = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun WebsitesCategoryCard(
-    count: Int,
-    blockedWebsites: List<String>,
-    onClick: () -> Unit
-) {
-    var isPressed by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                isPressed = true
-                onClick()
-            }
-            .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(16.dp),
-                spotColor = Color.Black.copy(alpha = 0.4f)
-            )
-            .animateContentSize(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A3E).copy(alpha = 0.8f)
-        )
-    ) {
-        LaunchedEffect(isPressed) {
-            if (isPressed) {
-                delay(150)
-                isPressed = false
-            }
-        }
-
-        Column(
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .height(100.dp)
+                .graphicsLayer(scaleX = scale, scaleY = scale)
+                .clickable {
+                    isPressed = true
+                    onClick()
+                }
+                .shadow(
+                    elevation = if (count > 0) 12.dp else 6.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    spotColor = if (count > 0)
+                        BlocklistWellnessColors.Success.copy(alpha = 0.3f)
+                    else
+                        Color.Black.copy(alpha = 0.1f)
+                ),
+            colors = CardDefaults.cardColors(
+                containerColor = if (count > 0)
+                    BlocklistWellnessColors.Success.copy(alpha = 0.1f)
+                else
+                    BlocklistWellnessColors.CardSurface.copy(alpha = 0.7f)
+            ),
+            shape = RoundedCornerShape(20.dp)
         ) {
-            // Header row
+            LaunchedEffect(isPressed) {
+                if (isPressed) {
+                    delay(150)
+                    isPressed = false
+                }
+            }
+
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
+                    // Icon
                     Icon(
-                        Icons.Default.Language,
-                        contentDescription = "Websites",
-                        tint = Color(0xFF00BCD4),
+                        icon,
+                        contentDescription = title,
+                        tint = if (count > 0) BlocklistWellnessColors.Success else BlocklistWellnessColors.Accent,
+                        modifier = Modifier.size(32.dp)
+                    )
+
+                    // Title and description
+                    Column {
+                        Text(
+                            text = title,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BlocklistWellnessColors.OnSurface
+                        )
+                        Text(
+                            text = description,
+                            fontSize = 14.sp,
+                            color = BlocklistWellnessColors.OnSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                // Count and arrow
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Count badge
+                    Text(
+                        text = count.toString(),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (count > 0) BlocklistWellnessColors.Success else BlocklistWellnessColors.OnSurface.copy(alpha = 0.6f)
+                    )
+
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = "Navigate",
+                        tint = BlocklistWellnessColors.OnSurface.copy(alpha = 0.5f),
                         modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryFooter(
+    appsCount: Int,
+    websitesCount: Int
+) {
+    var footerVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(600)
+        footerVisible = true
+    }
+
+    AnimatedVisibility(
+        visible = footerVisible,
+        enter = slideInVertically(
+            initialOffsetY = { it },
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        ) + fadeIn()
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 8.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    spotColor = BlocklistWellnessColors.Success.copy(alpha = 0.2f)
+                ),
+            colors = CardDefaults.cardColors(
+                containerColor = BlocklistWellnessColors.Success.copy(alpha = 0.1f)
+            ),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
                     Text(
-                        text = "Websites",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
+                        text = "Blocklist Summary",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BlocklistWellnessColors.OnSurface
+                    )
+                    Text(
+                        text = "You're blocking ${appsCount + websitesCount} items",
+                        fontSize = 14.sp,
+                        color = BlocklistWellnessColors.OnSurface.copy(alpha = 0.7f)
                     )
                 }
 
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Globe with count (like in your second image)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .background(
-                                Color(0xFF00BCD4).copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Language,
-                            contentDescription = "Website count",
-                            tint = Color(0xFF00BCD4),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = count.toString(),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00BCD4)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = "Open",
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            // Website chips preview (like in your second image)
-            if (blockedWebsites.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(blockedWebsites) { website ->
-                        WebsiteChip(website = website)
+                    if (appsCount > 0) {
+                        SummaryItem(
+                            count = appsCount,
+                            label = "apps",
+                            icon = Icons.Default.Apps
+                        )
+                    }
+
+                    if (websitesCount > 0) {
+                        SummaryItem(
+                            count = websitesCount,
+                            label = "sites",
+                            icon = Icons.Default.Language
+                        )
                     }
                 }
             }
@@ -357,32 +384,32 @@ private fun WebsitesCategoryCard(
 }
 
 @Composable
-private fun WebsiteChip(website: String) {
-    var chipVisible by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        delay(100)
-        chipVisible = true
-    }
-
-    AnimatedVisibility(
-        visible = chipVisible,
-        enter = scaleIn(
-            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
-        ) + fadeIn()
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF424242))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Text(
-                text = website,
-                fontSize = 12.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Medium
+private fun SummaryItem(
+    count: Int,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        modifier = Modifier
+            .background(
+                BlocklistWellnessColors.Success.copy(alpha = 0.2f),
+                RoundedCornerShape(12.dp)
             )
-        }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = BlocklistWellnessColors.Success,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = "$count $label",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = BlocklistWellnessColors.Success
+        )
     }
 }

@@ -1,6 +1,14 @@
 package com.example.mute_app.viewmodels.explore.`break`
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -21,19 +29,90 @@ data class BreakUiState(
     val streakDays: Int = 0,
     val isAppBlockEnabled: Boolean = false,
     val isFocusModeEnabled: Boolean = false,
+    val selectedAppsCount: Int = 0,
+    val selectedWebsitesCount: Int = 0,
     val error: String? = null
 )
 
 @HiltViewModel
-class BreakViewModel @Inject constructor() : ViewModel() {
+class BreakViewModel @Inject constructor(
+    private val application: Application
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(BreakUiState())
     val uiState: StateFlow<BreakUiState> = _uiState.asStateFlow()
 
     private var timerJob: Job? = null
+    private val notificationManager = application.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    // SharedPreferences for persistent storage
+    private val prefs = application.getSharedPreferences("break_app_prefs", Context.MODE_PRIVATE)
+    private val selectedAppsKey = "selected_apps_for_blocking"
+    private val selectedWebsitesKey = "selected_websites_for_blocking"
+    private val sessionStateKey = "session_active"
+    private val sessionStartTimeKey = "session_start_time"
+    private val sessionDurationKey = "session_duration"
+
+    companion object {
+        private const val NOTIFICATION_CHANNEL_ID = "break_app_blocking"
+        private const val NOTIFICATION_ID = 1
+    }
 
     init {
+        createNotificationChannel()
         loadUserStats()
+        loadBlocklistCounts()
+        restoreSessionIfActive()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Focus Session",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Shows when a focus session is active"
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun restoreSessionIfActive() {
+        val isSessionActive = prefs.getBoolean(sessionStateKey, false)
+        if (isSessionActive) {
+            val startTime = prefs.getLong(sessionStartTimeKey, 0L)
+            val duration = prefs.getLong(sessionDurationKey, 25 * 60 * 1000L)
+            val currentTime = System.currentTimeMillis()
+            val elapsed = currentTime - startTime
+            val remaining = (duration - elapsed).coerceAtLeast(0)
+
+            if (remaining > 0) {
+                _uiState.value = _uiState.value.copy(
+                    isSessionActive = true,
+                    timeRemaining = remaining,
+                    totalTime = duration
+                )
+                startBackgroundTimer()
+                showForegroundNotification()
+            } else {
+                // Session expired while app was closed
+                completeSession()
+            }
+        }
+    }
+
+    fun loadBlocklistCounts() {
+        viewModelScope.launch {
+            val selectedApps = prefs.getStringSet(selectedAppsKey, emptySet()) ?: emptySet()
+            val selectedWebsites = prefs.getStringSet(selectedWebsitesKey, emptySet()) ?: emptySet()
+
+            _uiState.value = _uiState.value.copy(
+                selectedAppsCount = selectedApps.size,
+                selectedWebsitesCount = selectedWebsites.size
+            )
+        }
     }
 
     fun toggleSession() {
@@ -47,8 +126,30 @@ class BreakViewModel @Inject constructor() : ViewModel() {
     }
 
     private fun startSession() {
-        _uiState.value = _uiState.value.copy(isSessionActive = true)
+        val startTime = System.currentTimeMillis()
+        val duration = _uiState.value.totalTime
 
+        // Save session state to preferences
+        prefs.edit()
+            .putBoolean(sessionStateKey, true)
+            .putLong(sessionStartTimeKey, startTime)
+            .putLong(sessionDurationKey, duration)
+            .apply()
+
+        _uiState.value = _uiState.value.copy(
+            isSessionActive = true,
+            isAppBlockEnabled = true,
+            isFocusModeEnabled = true
+        )
+
+        startBackgroundTimer()
+        showForegroundNotification()
+        enableAppBlocking()
+        enableFocusMode()
+    }
+
+    private fun startBackgroundTimer() {
+        timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (_uiState.value.isSessionActive && _uiState.value.timeRemaining > 0) {
                 delay(1000)
@@ -60,42 +161,120 @@ class BreakViewModel @Inject constructor() : ViewModel() {
                     timeRemaining = newTimeRemaining
                 )
 
+                // Update notification
+                updateNotification()
+
                 // Session completed
                 if (newTimeRemaining == 0L) {
                     completeSession()
+                    break
                 }
             }
         }
     }
 
     private fun pauseSession() {
-        _uiState.value = _uiState.value.copy(isSessionActive = false)
         timerJob?.cancel()
+
+        // Clear session state from preferences
+        prefs.edit()
+            .putBoolean(sessionStateKey, false)
+            .remove(sessionStartTimeKey)
+            .remove(sessionDurationKey)
+            .apply()
+
+        _uiState.value = _uiState.value.copy(
+            isSessionActive = false,
+            isAppBlockEnabled = false,
+            isFocusModeEnabled = false,
+            timeRemaining = _uiState.value.totalTime
+        )
+
+        dismissNotification()
+        disableAppBlocking()
+        disableFocusMode()
     }
 
     fun stopSession() {
-        timerJob?.cancel()
-        val currentState = _uiState.value
-
-        _uiState.value = currentState.copy(
-            isSessionActive = false,
-            timeRemaining = currentState.totalTime
-        )
+        pauseSession() // Use the same logic as pause
     }
 
     private fun completeSession() {
+        timerJob?.cancel()
+
+        // Clear session state from preferences
+        prefs.edit()
+            .putBoolean(sessionStateKey, false)
+            .remove(sessionStartTimeKey)
+            .remove(sessionDurationKey)
+            .apply()
+
         val currentState = _uiState.value
         val sessionDurationMinutes = currentState.totalTime / (60 * 1000)
 
         _uiState.value = currentState.copy(
             isSessionActive = false,
+            isAppBlockEnabled = false,
+            isFocusModeEnabled = false,
             sessionsCompleted = currentState.sessionsCompleted + 1,
             totalFocusTime = currentState.totalFocusTime + sessionDurationMinutes,
             timeRemaining = currentState.totalTime
         )
 
+        dismissNotification()
+        disableAppBlocking()
+        disableFocusMode()
+
+        // TODO: Show completion celebration
         // TODO: Save completed session to database
-        // TODO: Show completion notification/celebration
+    }
+
+    private fun showForegroundNotification() {
+        val intent = Intent(application, application.javaClass) // Replace with your main activity
+        val pendingIntent = PendingIntent.getActivity(
+            application, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(application, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle("Focus Session Active")
+            .setContentText("Blocking distractions...")
+            .setSmallIcon(android.R.drawable.ic_lock_idle_lock) // Replace with your app icon
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
+        notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun updateNotification() {
+        val intent = Intent(application, application.javaClass) // Replace with your main activity
+        val pendingIntent = PendingIntent.getActivity(
+            application, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val minutes = (_uiState.value.timeRemaining / 1000 / 60) % 60
+        val seconds = (_uiState.value.timeRemaining / 1000) % 60
+        val timeText = String.format("%02d:%02d remaining", minutes, seconds)
+
+        val notification = NotificationCompat.Builder(application, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle("Focus Session Active")
+            .setContentText(timeText)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_lock) // Replace with your app icon
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
+        notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun dismissNotification() {
+        notificationManager.cancel(NOTIFICATION_ID)
     }
 
     fun changeMode(mode: String) {
@@ -121,7 +300,6 @@ class BreakViewModel @Inject constructor() : ViewModel() {
             isAppBlockEnabled = !currentState.isAppBlockEnabled
         )
 
-        // TODO: Implement actual app blocking functionality
         if (_uiState.value.isAppBlockEnabled) {
             enableAppBlocking()
         } else {
@@ -135,7 +313,6 @@ class BreakViewModel @Inject constructor() : ViewModel() {
             isFocusModeEnabled = !currentState.isFocusModeEnabled
         )
 
-        // TODO: Implement actual focus mode functionality
         if (_uiState.value.isFocusModeEnabled) {
             enableFocusMode()
         } else {
@@ -166,9 +343,17 @@ class BreakViewModel @Inject constructor() : ViewModel() {
         // or implement custom app blocking mechanism
         viewModelScope.launch {
             try {
-                // Mock implementation
+                // Mock implementation - replace with actual blocking logic
                 delay(500)
-                // Show success feedback
+
+                // This is where you would:
+                // 1. Get the list of selected apps from SharedPreferences
+                // 2. Use Android's UsageStatsManager or AccessibilityService
+                // 3. Block the selected apps from launching
+
+                val selectedApps = prefs.getStringSet(selectedAppsKey, emptySet()) ?: emptySet()
+                // TODO: Apply blocking to these apps
+
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to enable app blocking: ${e.message}",
@@ -181,9 +366,11 @@ class BreakViewModel @Inject constructor() : ViewModel() {
     private fun disableAppBlocking() {
         viewModelScope.launch {
             try {
-                // Mock implementation
+                // Mock implementation - replace with actual unblocking logic
                 delay(500)
-                // Show success feedback
+
+                // TODO: Remove blocking from all apps
+
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to disable app blocking: ${e.message}",
@@ -203,7 +390,13 @@ class BreakViewModel @Inject constructor() : ViewModel() {
             try {
                 // Mock implementation
                 delay(500)
-                // Show success feedback
+
+                // This is where you would:
+                // 1. Enable Do Not Disturb mode
+                // 2. Dim screen brightness
+                // 3. Filter notifications
+                // 4. Apply system-wide focus settings
+
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to enable focus mode: ${e.message}",
@@ -218,7 +411,9 @@ class BreakViewModel @Inject constructor() : ViewModel() {
             try {
                 // Mock implementation
                 delay(500)
-                // Show success feedback
+
+                // TODO: Restore normal system settings
+
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to disable focus mode: ${e.message}",
@@ -234,6 +429,12 @@ class BreakViewModel @Inject constructor() : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        timerJob?.cancel()
+        // Don't cancel timer job on clear - let it run in background
+        // timerJob?.cancel()
+
+        // Only dismiss notification if session is not active
+        if (!_uiState.value.isSessionActive) {
+            dismissNotification()
+        }
     }
 }
