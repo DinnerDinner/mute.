@@ -1,5 +1,5 @@
 package com.example.mute_app.screens.explore.`break`
-
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -30,7 +30,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mute_app.viewmodels.explore.`break`.BreakViewModel
 import kotlinx.coroutines.delay
 import kotlin.math.*
-
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
 // Break Screen States
 sealed class BreakScreenState {
     object Overview : BreakScreenState()
@@ -64,20 +67,21 @@ fun BreakScreen(
     viewModel: BreakViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     // Load counts when screen appears
     LaunchedEffect(Unit) {
         viewModel.loadBlocklistCounts()
         viewModel.refreshPermissions()
     }
-
-    // State management
     var currentState by remember { mutableStateOf<BreakScreenState>(BreakScreenState.Overview) }
 
-    // Show permissions setup if needed
+    // Auto-refresh permissions when app comes to foreground
     LaunchedEffect(uiState.needsPermissionSetup) {
         if (uiState.needsPermissionSetup) {
             currentState = BreakScreenState.PermissionsSetup
+        } else {
+            currentState = BreakScreenState.Overview
         }
     }
 
@@ -85,7 +89,7 @@ fun BreakScreen(
     uiState.error?.let { error ->
         LaunchedEffect(error) {
             // Show error for 3 seconds then clear
-            delay(3000)
+            delay(5000)
             viewModel.clearError()
         }
     }

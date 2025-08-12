@@ -52,6 +52,7 @@ class BreakViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(BreakUiState())
     val uiState: StateFlow<BreakUiState> = _uiState.asStateFlow()
+    private var isAppInForeground = true
 
     private var timerJob: Job? = null
     private val notificationManager = application.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -87,6 +88,11 @@ class BreakViewModel @Inject constructor(
 
         val hasAccessibility = isAccessibilityServiceEnabled()
 
+        // Store the current state to compare with previous
+        val currentState = _uiState.value
+        val permissionStateChanged = currentState.hasOverlayPermission != hasOverlay ||
+                currentState.hasAccessibilityPermission != hasAccessibility
+
         val permissionMessage = when {
             !hasOverlay && !hasAccessibility ->
                 "App blocking requires Overlay and Accessibility permissions. Please enable both to start blocking apps."
@@ -104,17 +110,83 @@ class BreakViewModel @Inject constructor(
             permissionMessage = permissionMessage
         )
 
-        Log.d(TAG, "Permissions - Overlay: $hasOverlay, Accessibility: $hasAccessibility")
+        // Only log if there's a change to reduce log spam
+        if (permissionStateChanged) {
+            Log.d(TAG, "Permission state changed - Overlay: $hasOverlay, Accessibility: $hasAccessibility")
+        }
+    }
+
+    fun refreshPermissions() {
+        Log.d(TAG, "Refreshing permissions...")
+        viewModelScope.launch {
+            delay(500) // Small delay to allow system settings to propagate
+            checkPermissions()
+        }
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
-        val enabledServices = Settings.Secure.getString(
-            application.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: ""
+        return try {
+            // Get all enabled accessibility services
+            val enabledServices = Settings.Secure.getString(
+                application.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
 
-        val serviceName = "com.example.mute_app/.services.AppBlockingService"
-        return enabledServices.contains(serviceName)
+            // Check if accessibility is globally enabled
+            val accessibilityEnabled = Settings.Secure.getInt(
+                application.contentResolver,
+                Settings.Secure.ACCESSIBILITY_ENABLED,
+                0
+            ) == 1
+
+            Log.d(TAG, "Accessibility globally enabled: $accessibilityEnabled")
+            Log.d(TAG, "Enabled services string: '$enabledServices'")
+
+            // If accessibility is not globally enabled, return false immediately
+            if (!accessibilityEnabled) {
+                Log.d(TAG, "Accessibility not globally enabled")
+                return false
+            }
+
+            // Check multiple possible service name formats
+            val possibleServiceNames = listOf(
+                "com.example.mute_app/.services.AppBlockingService",
+                "com.example.mute_app/com.example.mute_app.services.AppBlockingService",
+                "${application.packageName}/.services.AppBlockingService",
+                "${application.packageName}/com.example.mute_app.services.AppBlockingService",
+                ".services.AppBlockingService"
+            )
+
+            var serviceFound = false
+            for (serviceName in possibleServiceNames) {
+                if (enabledServices.contains(serviceName)) {
+                    Log.d(TAG, "Found accessibility service with name: $serviceName")
+                    serviceFound = true
+                    break
+                }
+            }
+
+            // Also check if our service is actually connected and recent
+            val serviceConnected = prefs.getBoolean("accessibility_service_connected", false)
+            val connectionTime = prefs.getLong("accessibility_service_connected_time", 0)
+            val recentConnection = (System.currentTimeMillis() - connectionTime) < 30000 // 30 seconds
+
+            Log.d(TAG, "Service name found in settings: $serviceFound")
+            Log.d(TAG, "Service reports connected: $serviceConnected")
+            Log.d(TAG, "Recent connection: $recentConnection")
+
+            // Return true if:
+            // 1. Accessibility is globally enabled AND
+            // 2. Either our service name is found in the settings OR our service reports being connected recently
+            val result = accessibilityEnabled && (serviceFound || (serviceConnected && recentConnection))
+
+            Log.d(TAG, "Final accessibility result: $result")
+            return result
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking accessibility service", e)
+            return false
+        }
     }
 
     fun requestOverlayPermission() {
@@ -480,10 +552,6 @@ class BreakViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
-    }
-
-    fun refreshPermissions() {
-        checkPermissions()
     }
 
     fun testOverlay() {

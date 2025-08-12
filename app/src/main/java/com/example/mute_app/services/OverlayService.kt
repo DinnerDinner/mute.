@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -38,15 +39,14 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-
         createNotificationChannel()
 
-        // Register receiver with proper context registration for API levels
         val filter = IntentFilter().apply {
             addAction(AppBlockingService.ACTION_SHOW_OVERLAY)
             addAction(AppBlockingService.ACTION_HIDE_OVERLAY)
         }
 
+        // Register the receiver; this receiver is local to the process and registered dynamically so it will receive explicit broadcasts
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(overlayReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -54,7 +54,7 @@ class OverlayService : Service() {
             registerReceiver(overlayReceiver, filter)
         }
 
-        Log.d(TAG, "OverlayService created")
+        Log.d(TAG, "OverlayService created and receiver registered")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -63,7 +63,7 @@ class OverlayService : Service() {
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onBind(intent: Intent?) = null
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -92,43 +92,56 @@ class OverlayService : Service() {
     }
 
     private fun showOverlay(appName: String, packageName: String) {
+        Log.d(TAG, "Attempting to show overlay for: $appName ($packageName)")
+
+        // Permission check
+        val canDraw = Settings.canDrawOverlays(this)
+        Log.d(TAG, "Overlay permission granted: $canDraw")
+        if (!canDraw) {
+            Log.e(TAG, "Overlay permission missing — cannot display overlay. Please ask user to grant 'Draw over other apps'.")
+            return
+        }
+
         if (isOverlayShowing) {
+            Log.d(TAG, "Overlay already showing — hiding existing overlay first")
             hideOverlay()
         }
 
         try {
-            // Inflate the blocking layout
             overlayView = LayoutInflater.from(this).inflate(R.layout.blocking_overlay, null)
-
-            // Set up the overlay view
             setupOverlayView(overlayView!!, appName, packageName)
 
-            // Configure window parameters
+            // Use layout params that allow the overlay to receive touches and be focusable
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+
+            val flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            // Note: we intentionally do NOT include FLAG_NOT_FOCUSABLE so overlay can intercept touches.
+
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                } else {
-                    @Suppress("DEPRECATION")
-                    WindowManager.LayoutParams.TYPE_PHONE
-                },
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+                type,
+                flags,
                 PixelFormat.TRANSLUCENT
             )
 
             params.gravity = Gravity.CENTER
 
-            // Add the view to window manager
+            Log.d(TAG, "Adding overlay view with params: type=$type flags=$flags")
             windowManager.addView(overlayView, params)
             isOverlayShowing = true
+            Log.d(TAG, "Overlay shown successfully for app: $appName ($packageName)")
 
-            Log.d(TAG, "Overlay shown for app: $appName")
-
+        } catch (se: SecurityException) {
+            Log.e(TAG, "SecurityException while adding overlay view (likely permission/type issue)", se)
+            isOverlayShowing = false
         } catch (e: Exception) {
             Log.e(TAG, "Failed to show overlay", e)
             isOverlayShowing = false
@@ -136,25 +149,23 @@ class OverlayService : Service() {
     }
 
     private fun setupOverlayView(view: View, appName: String, packageName: String) {
-        // Set app name
         val appNameTextView = view.findViewById<TextView>(R.id.blocked_app_name)
         appNameTextView.text = "$appName is blocked"
 
-        // Set app icon (try to get actual app icon)
         val appIconView = view.findViewById<ImageView>(R.id.blocked_app_icon)
         try {
             val appIcon = packageManager.getApplicationIcon(packageName)
             appIconView.setImageDrawable(appIcon)
         } catch (e: Exception) {
-            // Keep default block icon if we can't get app icon
             Log.w(TAG, "Could not get app icon for $packageName", e)
         }
 
-        // Set up close button
+        // Ensure overlay root has a visible background in your layout (e.g. semi-transparent)
         val closeButton = view.findViewById<Button>(R.id.close_button)
         closeButton.setOnClickListener {
+            Log.d(TAG, "Close button clicked on overlay")
             hideOverlay()
-            // Optional: Go back to home screen to prevent immediate re-opening
+            // Optional: navigate to home to avoid immediate reopening
             val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_HOME)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -166,13 +177,20 @@ class OverlayService : Service() {
     private fun hideOverlay() {
         if (isOverlayShowing && overlayView != null) {
             try {
+                Log.d(TAG, "Removing overlay view")
                 windowManager.removeView(overlayView)
                 overlayView = null
                 isOverlayShowing = false
-                Log.d(TAG, "Overlay hidden")
+                Log.d(TAG, "Overlay hidden successfully")
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Overlay view was not attached", e)
+                overlayView = null
+                isOverlayShowing = false
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to hide overlay", e)
             }
+        } else {
+            Log.d(TAG, "hideOverlay() called but no overlay is showing")
         }
     }
 
@@ -189,15 +207,20 @@ class OverlayService : Service() {
 
     private inner class OverlayBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            Log.d(TAG, "Received broadcast: ${intent?.action}")
+            Log.d(TAG, "Received broadcast: ${intent?.action} from ${intent?.`package`}")
             when (intent?.action) {
                 AppBlockingService.ACTION_SHOW_OVERLAY -> {
                     val appName = intent.getStringExtra(AppBlockingService.EXTRA_BLOCKED_APP_NAME) ?: "App"
                     val packageName = intent.getStringExtra(AppBlockingService.EXTRA_BLOCKED_PACKAGE) ?: ""
+                    Log.d(TAG, "Triggering overlay for $appName ($packageName)")
                     showOverlay(appName, packageName)
                 }
                 AppBlockingService.ACTION_HIDE_OVERLAY -> {
+                    Log.d(TAG, "Received HIDE_OVERLAY")
                     hideOverlay()
+                }
+                else -> {
+                    Log.w(TAG, "Unknown action received in overlay receiver: ${intent?.action}")
                 }
             }
         }
