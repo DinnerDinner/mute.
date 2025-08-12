@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">mute.</string>
-</resources>
+    <string name="accessibility_service_description">Mute App uses this service to detect when blocked apps are opened and show the blocking overlay.</string>
+    </resources>

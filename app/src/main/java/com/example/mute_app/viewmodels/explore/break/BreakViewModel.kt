@@ -6,10 +6,15 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mute_app.services.AppBlockingService
+import com.example.mute_app.services.OverlayService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -31,7 +36,11 @@ data class BreakUiState(
     val isFocusModeEnabled: Boolean = false,
     val selectedAppsCount: Int = 0,
     val selectedWebsitesCount: Int = 0,
-    val error: String? = null
+    val error: String? = null,
+    // New permission states
+    val hasOverlayPermission: Boolean = false,
+    val hasAccessibilityPermission: Boolean = false,
+    val needsPermissionSetup: Boolean = false
 )
 
 @HiltViewModel
@@ -54,6 +63,7 @@ class BreakViewModel @Inject constructor(
     private val sessionDurationKey = "session_duration"
 
     companion object {
+        private const val TAG = "BreakViewModel"
         private const val NOTIFICATION_CHANNEL_ID = "break_app_blocking"
         private const val NOTIFICATION_ID = 1
     }
@@ -62,7 +72,54 @@ class BreakViewModel @Inject constructor(
         createNotificationChannel()
         loadUserStats()
         loadBlocklistCounts()
+        checkPermissions()
         restoreSessionIfActive()
+    }
+
+    private fun checkPermissions() {
+        val hasOverlay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(application)
+        } else {
+            true
+        }
+
+        val hasAccessibility = isAccessibilityServiceEnabled()
+
+        _uiState.value = _uiState.value.copy(
+            hasOverlayPermission = hasOverlay,
+            hasAccessibilityPermission = hasAccessibility,
+            needsPermissionSetup = !hasOverlay || !hasAccessibility
+        )
+
+        Log.d(TAG, "Permissions - Overlay: $hasOverlay, Accessibility: $hasAccessibility")
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val accessibilityManager = application.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+        val enabledServices = Settings.Secure.getString(
+            application.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: ""
+
+        val serviceName = "com.example.mute_app/.services.AppBlockingService"
+        return enabledServices.contains(serviceName)
+    }
+
+    fun requestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(application)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                data = Uri.parse("package:${application.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            application.startActivity(intent)
+        }
+    }
+
+    fun requestAccessibilityPermission() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        application.startActivity(intent)
     }
 
     private fun createNotificationChannel() {
@@ -96,6 +153,8 @@ class BreakViewModel @Inject constructor(
                 )
                 startBackgroundTimer()
                 showForegroundNotification()
+                // Restart services
+                startBlockingServices()
             } else {
                 // Session expired while app was closed
                 completeSession()
@@ -116,6 +175,16 @@ class BreakViewModel @Inject constructor(
     }
 
     fun toggleSession() {
+        // Check permissions first
+        checkPermissions()
+
+        if (_uiState.value.needsPermissionSetup) {
+            _uiState.value = _uiState.value.copy(
+                error = "Please enable required permissions to start blocking session"
+            )
+            return
+        }
+
         val currentState = _uiState.value
 
         if (currentState.isSessionActive) {
@@ -144,8 +213,44 @@ class BreakViewModel @Inject constructor(
 
         startBackgroundTimer()
         showForegroundNotification()
-        enableAppBlocking()
-        enableFocusMode()
+        startBlockingServices()
+
+        Log.d(TAG, "Focus session started")
+    }
+
+    private fun startBlockingServices() {
+        try {
+            // Start overlay service
+            val overlayIntent = Intent(application, OverlayService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                application.startForegroundService(overlayIntent)
+            } else {
+                application.startService(overlayIntent)
+            }
+
+            Log.d(TAG, "Blocking services started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start blocking services", e)
+            _uiState.value = _uiState.value.copy(
+                error = "Failed to start blocking services: ${e.message}"
+            )
+        }
+    }
+
+    private fun stopBlockingServices() {
+        try {
+            // Stop overlay service
+            val overlayIntent = Intent(application, OverlayService::class.java)
+            application.stopService(overlayIntent)
+
+            // Hide any active overlays
+            val hideIntent = Intent(AppBlockingService.ACTION_HIDE_OVERLAY)
+            application.sendBroadcast(hideIntent)
+
+            Log.d(TAG, "Blocking services stopped")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop blocking services", e)
+        }
     }
 
     private fun startBackgroundTimer() {
@@ -191,8 +296,9 @@ class BreakViewModel @Inject constructor(
         )
 
         dismissNotification()
-        disableAppBlocking()
-        disableFocusMode()
+        stopBlockingServices()
+
+        Log.d(TAG, "Focus session paused")
     }
 
     fun stopSession() {
@@ -222,11 +328,9 @@ class BreakViewModel @Inject constructor(
         )
 
         dismissNotification()
-        disableAppBlocking()
-        disableFocusMode()
+        stopBlockingServices()
 
-        // TODO: Show completion celebration
-        // TODO: Save completed session to database
+        Log.d(TAG, "Focus session completed")
     }
 
     private fun showForegroundNotification() {
@@ -294,32 +398,6 @@ class BreakViewModel @Inject constructor(
         )
     }
 
-    fun toggleAppBlock() {
-        val currentState = _uiState.value
-        _uiState.value = currentState.copy(
-            isAppBlockEnabled = !currentState.isAppBlockEnabled
-        )
-
-        if (_uiState.value.isAppBlockEnabled) {
-            enableAppBlocking()
-        } else {
-            disableAppBlocking()
-        }
-    }
-
-    fun toggleFocusMode() {
-        val currentState = _uiState.value
-        _uiState.value = currentState.copy(
-            isFocusModeEnabled = !currentState.isFocusModeEnabled
-        )
-
-        if (_uiState.value.isFocusModeEnabled) {
-            enableFocusMode()
-        } else {
-            disableFocusMode()
-        }
-    }
-
     private fun loadUserStats() {
         viewModelScope.launch {
             try {
@@ -338,100 +416,17 @@ class BreakViewModel @Inject constructor(
         }
     }
 
-    private fun enableAppBlocking() {
-        // TODO: Integrate with Android's app usage/device admin APIs
-        // or implement custom app blocking mechanism
-        viewModelScope.launch {
-            try {
-                // Mock implementation - replace with actual blocking logic
-                delay(500)
-
-                // This is where you would:
-                // 1. Get the list of selected apps from SharedPreferences
-                // 2. Use Android's UsageStatsManager or AccessibilityService
-                // 3. Block the selected apps from launching
-
-                val selectedApps = prefs.getStringSet(selectedAppsKey, emptySet()) ?: emptySet()
-                // TODO: Apply blocking to these apps
-
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    error = "Failed to enable app blocking: ${e.message}",
-                    isAppBlockEnabled = false
-                )
-            }
-        }
-    }
-
-    private fun disableAppBlocking() {
-        viewModelScope.launch {
-            try {
-                // Mock implementation - replace with actual unblocking logic
-                delay(500)
-
-                // TODO: Remove blocking from all apps
-
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    error = "Failed to disable app blocking: ${e.message}",
-                    isAppBlockEnabled = true
-                )
-            }
-        }
-    }
-
-    private fun enableFocusMode() {
-        // TODO: Implement focus mode features like:
-        // - Do Not Disturb
-        // - Custom notification filtering
-        // - Screen dimming
-        // - Background app restrictions
-        viewModelScope.launch {
-            try {
-                // Mock implementation
-                delay(500)
-
-                // This is where you would:
-                // 1. Enable Do Not Disturb mode
-                // 2. Dim screen brightness
-                // 3. Filter notifications
-                // 4. Apply system-wide focus settings
-
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    error = "Failed to enable focus mode: ${e.message}",
-                    isFocusModeEnabled = false
-                )
-            }
-        }
-    }
-
-    private fun disableFocusMode() {
-        viewModelScope.launch {
-            try {
-                // Mock implementation
-                delay(500)
-
-                // TODO: Restore normal system settings
-
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    error = "!!Failed to disable focus mode: ${e.message}!!",
-                    isFocusModeEnabled = true
-                )
-            }
-        }
-    }
-
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    fun refreshPermissions() {
+        checkPermissions()
     }
 
     override fun onCleared() {
         super.onCleared()
         // Don't cancel timer job on clear - let it run in background
-        // timerJob?.cancel()
-
         // Only dismiss notification if session is not active
         if (!_uiState.value.isSessionActive) {
             dismissNotification()

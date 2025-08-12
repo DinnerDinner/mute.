@@ -2,19 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Existing permissions -->
     <!-- Android 13+ notification permission -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-
-    <!-- For foreground service (persistent timer) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
-
-    <!-- For app usage stats (needed for app blocking) -->
-    <uses-permission android:name="android.permission.USAGE_STATS_MANAGER" />
-
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".MuteApplication"
@@ -26,6 +20,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Muteapp">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -36,5 +31,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- NEW SERVICES FOR APP BLOCKING -->
+        <!-- Accessibility service for app detection -->
+        <service
+            android:name=".services.AppBlockingService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Overlay Service -->
+        <service
+            android:name=".services.OverlayService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
     </application>
 </manifest>
