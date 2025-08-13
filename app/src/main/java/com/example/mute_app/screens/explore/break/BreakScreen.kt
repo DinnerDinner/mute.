@@ -28,12 +28,14 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mute_app.viewmodels.explore.`break`.BreakViewModel
+import com.example.mute_app.viewmodels.explore.`break`.WebsitesViewModel
 import kotlinx.coroutines.delay
 import kotlin.math.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalLifecycleOwner
+
 // Break Screen States
 sealed class BreakScreenState {
     object Overview : BreakScreenState()
@@ -64,16 +66,26 @@ private val WellnessColors = object {
 fun BreakScreen(
     onBackClick: () -> Unit,
     onNavigateToBlocklist: () -> Unit = {},
-    viewModel: BreakViewModel = hiltViewModel()
+    viewModel: BreakViewModel = hiltViewModel(),
+    websitesViewModel: WebsitesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val websitesUiState by websitesViewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // Load counts when screen appears
     LaunchedEffect(Unit) {
         viewModel.loadBlocklistCounts()
         viewModel.refreshPermissions()
+        // Load websites count
+        viewModel.updateWebsitesCount(websitesUiState.selectedWebsites.size)
     }
+
+    // Update websites count when it changes
+    LaunchedEffect(websitesUiState.selectedWebsites.size) {
+        viewModel.updateWebsitesCount(websitesUiState.selectedWebsites.size)
+    }
+
     var currentState by remember { mutableStateOf<BreakScreenState>(BreakScreenState.Overview) }
 
     // Auto-refresh permissions when app comes to foreground
@@ -110,7 +122,11 @@ fun BreakScreen(
             BreakScreenState.Overview -> {
                 OverviewScreen(
                     uiState = uiState,
-                    onToggleBlocking = viewModel::toggleSession,
+                    selectedWebsites = websitesUiState.selectedWebsites,
+                    onToggleBlocking = {
+                        // Pass both apps and websites to blocking logic
+                        viewModel.toggleSessionWithWebsites(websitesUiState.selectedWebsites)
+                    },
                     onNavigateToBlocklist = onNavigateToBlocklist,
                     onBackClick = onBackClick,
                     onShowPermissions = { currentState = BreakScreenState.PermissionsSetup }
@@ -245,7 +261,7 @@ private fun PermissionsSetupScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "To block apps effectively, mute. needs special permissions:",
+                    text = "To block apps and websites effectively, mute. needs special permissions:",
                     fontSize = 16.sp,
                     color = WellnessColors.OnSurface,
                     textAlign = TextAlign.Center
@@ -256,7 +272,7 @@ private fun PermissionsSetupScreen(
                 // Overlay Permission
                 PermissionItem(
                     title = "Screen Overlay",
-                    description = "Allows showing blocking screens over other apps",
+                    description = "Allows showing blocking screens over apps and browsers",
                     isGranted = uiState.hasOverlayPermission,
                     onGrant = onRequestOverlayPermission
                 )
@@ -266,11 +282,10 @@ private fun PermissionsSetupScreen(
                 // Accessibility Permission
                 PermissionItem(
                     title = "Accessibility Service",
-                    description = "Detects when you open blocked apps",
+                    description = "Detects when you open blocked apps or visit blocked websites",
                     isGranted = uiState.hasAccessibilityPermission,
                     onGrant = onRequestAccessibilityPermission
                 )
-
 
                 Spacer(modifier = Modifier.height(32.dp))
 
@@ -369,11 +384,14 @@ private fun PermissionItem(
 @Composable
 private fun OverviewScreen(
     uiState: com.example.mute_app.viewmodels.explore.`break`.BreakUiState,
+    selectedWebsites: Set<String>,
     onToggleBlocking: () -> Unit,
     onNavigateToBlocklist: () -> Unit,
     onBackClick: () -> Unit,
     onShowPermissions: () -> Unit
 ) {
+    val websitesCount = selectedWebsites.size
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -425,7 +443,7 @@ private fun OverviewScreen(
                 )
                 // Websites counter
                 CounterChip(
-                    count = uiState.selectedWebsitesCount,
+                    count = websitesCount,
                     icon = Icons.Default.Language,
                     label = "Sites"
                 )
@@ -441,7 +459,7 @@ private fun OverviewScreen(
             InactiveHeader(
                 onNavigateToBlocklist = onNavigateToBlocklist,
                 needsPermissions = uiState.needsPermissionSetup,
-                hasBlockedItems = uiState.selectedAppsCount > 0 || uiState.selectedWebsitesCount > 0
+                hasBlockedItems = uiState.selectedAppsCount > 0 || websitesCount > 0
             )
         }
 
@@ -456,7 +474,7 @@ private fun OverviewScreen(
         ) {
             MainControlCircle(
                 isActive = uiState.isSessionActive,
-                canStart = !uiState.needsPermissionSetup && (uiState.selectedAppsCount > 0 || uiState.selectedWebsitesCount > 0),
+                canStart = !uiState.needsPermissionSetup && (uiState.selectedAppsCount > 0 || websitesCount > 0),
                 onToggleBlocking = onToggleBlocking
             )
         }
@@ -557,13 +575,13 @@ private fun InactiveHeader(
 ) {
     val headerText = when {
         needsPermissions -> "Permissions Required"
-        !hasBlockedItems -> "No Apps Selected"
+        !hasBlockedItems -> "No Items Selected"
         else -> "Ready to Focus"
     }
 
     val subText = when {
         needsPermissions -> "Tap to enable required permissions"
-        !hasBlockedItems -> "Tap to select apps to block"
+        !hasBlockedItems -> "Tap to select apps and websites to block"
         else -> "Tap to configure blocklist"
     }
 

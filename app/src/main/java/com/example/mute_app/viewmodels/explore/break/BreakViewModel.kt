@@ -34,9 +34,12 @@ data class BreakUiState(
     val totalFocusTime: Long = 0, // in minutes
     val streakDays: Int = 0,
     val isAppBlockEnabled: Boolean = false,
+    val isWebsiteBlockEnabled: Boolean = false,
     val isFocusModeEnabled: Boolean = false,
     val selectedAppsCount: Int = 0,
     val selectedWebsitesCount: Int = 0,
+    val blockedApps: Set<String> = emptySet(),
+    val blockedWebsites: Set<String> = emptySet(),
     val error: String? = null,
     // Permission states
     val hasOverlayPermission: Boolean = false,
@@ -59,6 +62,7 @@ class BreakViewModel @Inject constructor(
 
     // SharedPreferences for persistent storage
     private val prefs = application.getSharedPreferences("break_app_prefs", Context.MODE_PRIVATE)
+    private val websitePrefs = application.getSharedPreferences("break_website_prefs", Context.MODE_PRIVATE)
     private val selectedAppsKey = "selected_apps_for_blocking"
     private val selectedWebsitesKey = "selected_websites_for_blocking"
     private val sessionStateKey = "session_active"
@@ -95,11 +99,11 @@ class BreakViewModel @Inject constructor(
 
         val permissionMessage = when {
             !hasOverlay && !hasAccessibility ->
-                "App blocking requires Overlay and Accessibility permissions. Please enable both to start blocking apps."
+                "App and website blocking requires Overlay and Accessibility permissions. Please enable both to start blocking."
             !hasOverlay ->
                 "Overlay permission is required to show blocking screen. Please enable it in settings."
             !hasAccessibility ->
-                "Accessibility permission is required to detect when blocked apps are opened. Please enable our service in Accessibility settings."
+                "Accessibility permission is required to detect when blocked apps are opened and websites are visited. Please enable our service in Accessibility settings."
             else -> null
         }
 
@@ -244,16 +248,20 @@ class BreakViewModel @Inject constructor(
             val remaining = (duration - elapsed).coerceAtLeast(0)
 
             if (remaining > 0) {
+                // Reload the blocked apps and websites
+                loadBlocklistCounts()
+
                 _uiState.value = _uiState.value.copy(
                     isSessionActive = true,
                     timeRemaining = remaining,
                     totalTime = duration,
-                    isAppBlockEnabled = true,
+                    isAppBlockEnabled = _uiState.value.selectedAppsCount > 0,
+                    isWebsiteBlockEnabled = _uiState.value.selectedWebsitesCount > 0,
                     isFocusModeEnabled = true
                 )
                 startBackgroundTimer()
                 showForegroundNotification()
-                // Restart services
+                // Restart services with both apps and websites
                 startBlockingServices()
             } else {
                 // Session expired while app was closed
@@ -265,15 +273,41 @@ class BreakViewModel @Inject constructor(
     fun loadBlocklistCounts() {
         viewModelScope.launch {
             val selectedApps = prefs.getStringSet(selectedAppsKey, emptySet()) ?: emptySet()
-            val selectedWebsites = prefs.getStringSet(selectedWebsitesKey, emptySet()) ?: emptySet()
+            val selectedWebsites = websitePrefs.getStringSet(selectedWebsitesKey, emptySet()) ?: emptySet()
 
             _uiState.value = _uiState.value.copy(
                 selectedAppsCount = selectedApps.size,
-                selectedWebsitesCount = selectedWebsites.size
+                selectedWebsitesCount = selectedWebsites.size,
+                blockedApps = selectedApps,
+                blockedWebsites = selectedWebsites
             )
 
             Log.d(TAG, "Loaded blocklist counts - Apps: ${selectedApps.size}, Websites: ${selectedWebsites.size}")
+            Log.d(TAG, "Blocked apps: ${selectedApps.joinToString(", ")}")
+            Log.d(TAG, "Blocked websites: ${selectedWebsites.joinToString(", ")}")
         }
+    }
+
+    fun updateWebsitesCount(count: Int) {
+        _uiState.value = _uiState.value.copy(
+            selectedWebsitesCount = count
+        )
+    }
+
+    fun toggleSessionWithWebsites(selectedWebsites: Set<String>) {
+        // Update the blocked websites in state
+        _uiState.value = _uiState.value.copy(
+            blockedWebsites = selectedWebsites,
+            selectedWebsitesCount = selectedWebsites.size
+        )
+
+        // Save websites to preferences for the session
+        websitePrefs.edit()
+            .putStringSet(selectedWebsitesKey, selectedWebsites)
+            .apply()
+
+        // Now toggle the session
+        toggleSession()
     }
 
     fun toggleSession() {
@@ -287,10 +321,10 @@ class BreakViewModel @Inject constructor(
             return
         }
 
-        // Check if there are apps to block
-        if (_uiState.value.selectedAppsCount == 0) {
+        // Check if there are apps or websites to block
+        if (_uiState.value.selectedAppsCount == 0 && _uiState.value.selectedWebsitesCount == 0) {
             _uiState.value = _uiState.value.copy(
-                error = "Please select at least one app to block before starting a session"
+                error = "Please select at least one app or website to block before starting a session"
             )
             return
         }
@@ -317,7 +351,8 @@ class BreakViewModel @Inject constructor(
 
         _uiState.value = _uiState.value.copy(
             isSessionActive = true,
-            isAppBlockEnabled = true,
+            isAppBlockEnabled = _uiState.value.selectedAppsCount > 0,
+            isWebsiteBlockEnabled = _uiState.value.selectedWebsitesCount > 0,
             isFocusModeEnabled = true,
             error = null
         )
@@ -326,24 +361,40 @@ class BreakViewModel @Inject constructor(
         showForegroundNotification()
         startBlockingServices()
 
-        Log.d(TAG, "Focus session started - Duration: ${duration / 1000}s")
+        Log.d(TAG, "Focus session started - Duration: ${duration / 1000}s, Apps: ${_uiState.value.selectedAppsCount}, Websites: ${_uiState.value.selectedWebsitesCount}")
     }
 
     private fun startBlockingServices() {
         try {
-            // Start overlay service first
-            val overlayIntent = Intent(application, OverlayService::class.java)
+            // Prepare the blocked websites list
+            val blockedWebsitesList = ArrayList(_uiState.value.blockedWebsites)
+            val blockedAppsList = ArrayList(_uiState.value.blockedApps)
+
+            // Send broadcast to update the accessibility service with new blocked lists
+            val updateIntent = Intent("com.example.mute_app.UPDATE_BLOCKED_LISTS").apply {
+                putStringArrayListExtra("blocked_apps", blockedAppsList)
+                putStringArrayListExtra("blocked_websites", blockedWebsitesList)
+            }
+            application.sendBroadcast(updateIntent)
+
+            // Start overlay service with both apps and websites
+            val overlayIntent = Intent(application, OverlayService::class.java).apply {
+                putStringArrayListExtra("blocked_apps", blockedAppsList)
+                putStringArrayListExtra("blocked_websites", blockedWebsitesList)
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 application.startForegroundService(overlayIntent)
             } else {
                 application.startService(overlayIntent)
             }
 
-            Log.d(TAG, "Overlay service started successfully")
+            Log.d(TAG, "Overlay service started successfully with ${_uiState.value.blockedApps.size} apps and ${_uiState.value.blockedWebsites.size} websites")
+            Log.d(TAG, "Blocked websites sent to service: ${blockedWebsitesList.joinToString(", ")}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start blocking services", e)
             _uiState.value = _uiState.value.copy(
-                error = "Failed to start app blocking service. Please check permissions and try again."
+                error = "Failed to start blocking service. Please check permissions and try again."
             )
             // Stop the session if services fail to start
             pauseSession()
@@ -352,6 +403,10 @@ class BreakViewModel @Inject constructor(
 
     private fun stopBlockingServices() {
         try {
+            // Send broadcast to clear blocked lists in accessibility service
+            val clearIntent = Intent("com.example.mute_app.CLEAR_BLOCKED_LISTS")
+            application.sendBroadcast(clearIntent)
+
             // Hide any active overlays first
             val hideIntent = Intent(AppBlockingService.ACTION_HIDE_OVERLAY)
             application.sendBroadcast(hideIntent)
@@ -404,6 +459,7 @@ class BreakViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             isSessionActive = false,
             isAppBlockEnabled = false,
+            isWebsiteBlockEnabled = false,
             isFocusModeEnabled = false,
             timeRemaining = _uiState.value.totalTime
         )
@@ -444,6 +500,7 @@ class BreakViewModel @Inject constructor(
         _uiState.value = currentState.copy(
             isSessionActive = false,
             isAppBlockEnabled = false,
+            isWebsiteBlockEnabled = false,
             isFocusModeEnabled = false,
             sessionsCompleted = newSessionsCompleted,
             totalFocusTime = newTotalFocusTime,
@@ -467,9 +524,19 @@ class BreakViewModel @Inject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val blockedItemsText = buildString {
+            if (_uiState.value.selectedAppsCount > 0) {
+                append("${_uiState.value.selectedAppsCount} apps")
+            }
+            if (_uiState.value.selectedWebsitesCount > 0) {
+                if (isNotEmpty()) append(" & ")
+                append("${_uiState.value.selectedWebsitesCount} websites")
+            }
+        }
+
         val notification = NotificationCompat.Builder(application, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("Focus Session Active")
-            .setContentText("Blocking distractions...")
+            .setContentText("Blocking $blockedItemsText")
             .setSmallIcon(R.drawable.ic_block)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

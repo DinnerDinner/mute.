@@ -5,8 +5,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -25,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.runtime.collectAsState
 import com.example.mute_app.viewmodels.explore.`break`.BlocklistViewModel
+import com.example.mute_app.viewmodels.explore.`break`.WebsitesViewModel
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.graphicsLayer
 
@@ -46,14 +44,19 @@ fun BlocklistScreen(
     onNavigateToApplications: () -> Unit,
     onNavigateToWebsites: () -> Unit,
     onBackClick: () -> Unit,
-    viewModel: BlocklistViewModel = hiltViewModel()
+    viewModel: BlocklistViewModel = hiltViewModel(),
+    websitesViewModel: WebsitesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val websitesUiState by websitesViewModel.uiState.collectAsState()
 
     // Refresh data when screen appears
     LaunchedEffect(Unit) {
         viewModel.refreshCounts()
     }
+
+    // Calculate website count from websitesViewModel
+    val websitesCount = websitesUiState.selectedWebsites.size
 
     Box(
         modifier = Modifier
@@ -80,8 +83,8 @@ fun BlocklistScreen(
             // Category cards
             CategorySection(
                 appsCount = uiState.selectedAppsCount,
-                websitesCount = uiState.selectedWebsitesCount,
-                blockedWebsites = uiState.blockedWebsites,
+                websitesCount = websitesCount,
+                blockedWebsites = websitesUiState.selectedWebsites,
                 onNavigateToApplications = onNavigateToApplications,
                 onNavigateToWebsites = onNavigateToWebsites
             )
@@ -89,10 +92,10 @@ fun BlocklistScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             // Summary footer
-            if (uiState.selectedAppsCount > 0 || uiState.selectedWebsitesCount > 0) {
+            if (uiState.selectedAppsCount > 0 || websitesCount > 0) {
                 SummaryFooter(
                     appsCount = uiState.selectedAppsCount,
-                    websitesCount = uiState.selectedWebsitesCount
+                    websitesCount = websitesCount
                 )
             }
         }
@@ -149,14 +152,14 @@ private fun ModernBlocklistHeader(onBackClick: () -> Unit) {
 private fun CategorySection(
     appsCount: Int,
     websitesCount: Int,
-    blockedWebsites: List<String>,
+    blockedWebsites: Set<String>,
     onNavigateToApplications: () -> Unit,
     onNavigateToWebsites: () -> Unit
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Apps category - SIMPLIFIED
+        // Apps category
         AnimatedCategoryCard(
             title = "Applications",
             description = "Block distracting mobile apps",
@@ -166,7 +169,7 @@ private fun CategorySection(
             animationDelay = 0L
         )
 
-        // Websites category - SIMPLIFIED
+        // Websites category
         AnimatedCategoryCard(
             title = "Websites",
             description = "Block distracting websites",

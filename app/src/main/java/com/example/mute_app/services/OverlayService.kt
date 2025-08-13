@@ -83,7 +83,7 @@ class OverlayService : Service() {
     private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("App Blocking Active")
-            .setContentText("Monitoring for blocked apps")
+            .setContentText("Monitoring for blocked apps and websites")
             .setSmallIcon(R.drawable.ic_block)
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -91,8 +91,8 @@ class OverlayService : Service() {
             .build()
     }
 
-    private fun showOverlay(appName: String, packageName: String) {
-        Log.d(TAG, "Attempting to show overlay for: $appName ($packageName)")
+    private fun showOverlay(appName: String, packageName: String, isWebsite: Boolean = false, blockedUrl: String? = null) {
+        Log.d(TAG, "Attempting to show overlay for: $appName ($packageName) - Website: $isWebsite")
 
         // Permission check
         val canDraw = Settings.canDrawOverlays(this)
@@ -109,7 +109,7 @@ class OverlayService : Service() {
 
         try {
             overlayView = LayoutInflater.from(this).inflate(R.layout.blocking_overlay, null)
-            setupOverlayView(overlayView!!, appName, packageName)
+            setupOverlayView(overlayView!!, appName, packageName, isWebsite, blockedUrl)
 
             // Use layout params that allow the overlay to receive touches and be focusable
             val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -137,7 +137,12 @@ class OverlayService : Service() {
             Log.d(TAG, "Adding overlay view with params: type=$type flags=$flags")
             windowManager.addView(overlayView, params)
             isOverlayShowing = true
-            Log.d(TAG, "Overlay shown successfully for app: $appName ($packageName)")
+
+            if (isWebsite) {
+                Log.d(TAG, "Website overlay shown successfully for: $appName (URL: $blockedUrl)")
+            } else {
+                Log.d(TAG, "App overlay shown successfully for: $appName ($packageName)")
+            }
 
         } catch (se: SecurityException) {
             Log.e(TAG, "SecurityException while adding overlay view (likely permission/type issue)", se)
@@ -148,16 +153,37 @@ class OverlayService : Service() {
         }
     }
 
-    private fun setupOverlayView(view: View, appName: String, packageName: String) {
+    private fun setupOverlayView(view: View, appName: String, packageName: String, isWebsite: Boolean, blockedUrl: String?) {
         val appNameTextView = view.findViewById<TextView>(R.id.blocked_app_name)
-        appNameTextView.text = "$appName is blocked"
+
+        if (isWebsite) {
+            appNameTextView.text = "Website blocked: $appName"
+            // Optionally show the URL as well if you have space in your layout:
+            // appNameTextView.text = "Website blocked: $appName\n$blockedUrl"
+        } else {
+            appNameTextView.text = "$appName is blocked"
+        }
 
         val appIconView = view.findViewById<ImageView>(R.id.blocked_app_icon)
         try {
-            val appIcon = packageManager.getApplicationIcon(packageName)
-            appIconView.setImageDrawable(appIcon)
+            if (isWebsite) {
+                // For websites, show browser icon or a generic web blocked icon
+                try {
+                    val appIcon = packageManager.getApplicationIcon(packageName)
+                    appIconView.setImageDrawable(appIcon)
+                } catch (e: Exception) {
+                    // Fallback to a generic web/blocked icon
+                    appIconView.setImageResource(R.drawable.ic_block)
+                }
+            } else {
+                // For apps, show the app icon
+                val appIcon = packageManager.getApplicationIcon(packageName)
+                appIconView.setImageDrawable(appIcon)
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not get app icon for $packageName", e)
+            Log.w(TAG, "Could not get icon for $packageName", e)
+            // Set a default blocked icon
+            appIconView.setImageResource(R.drawable.ic_block)
         }
 
         // Ensure overlay root has a visible background in your layout (e.g. semi-transparent)
@@ -210,10 +236,18 @@ class OverlayService : Service() {
             Log.d(TAG, "Received broadcast: ${intent?.action} from ${intent?.`package`}")
             when (intent?.action) {
                 AppBlockingService.ACTION_SHOW_OVERLAY -> {
-                    val appName = intent.getStringExtra(AppBlockingService.EXTRA_BLOCKED_APP_NAME) ?: "App"
+                    val appName = intent.getStringExtra(AppBlockingService.EXTRA_BLOCKED_APP_NAME) ?: "Unknown"
                     val packageName = intent.getStringExtra(AppBlockingService.EXTRA_BLOCKED_PACKAGE) ?: ""
-                    Log.d(TAG, "Triggering overlay for $appName ($packageName)")
-                    showOverlay(appName, packageName)
+                    val isWebsite = intent.getBooleanExtra(AppBlockingService.EXTRA_IS_WEBSITE, false)
+                    val blockedUrl = intent.getStringExtra(AppBlockingService.EXTRA_BLOCKED_URL)
+
+                    if (isWebsite) {
+                        Log.d(TAG, "Triggering website overlay for $appName (URL: $blockedUrl)")
+                    } else {
+                        Log.d(TAG, "Triggering app overlay for $appName ($packageName)")
+                    }
+
+                    showOverlay(appName, packageName, isWebsite, blockedUrl)
                 }
                 AppBlockingService.ACTION_HIDE_OVERLAY -> {
                     Log.d(TAG, "Received HIDE_OVERLAY")
