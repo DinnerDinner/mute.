@@ -294,21 +294,7 @@ class BreakViewModel @Inject constructor(
         )
     }
 
-    fun toggleSessionWithWebsites(selectedWebsites: Set<String>) {
-        // Update the blocked websites in state
-        _uiState.value = _uiState.value.copy(
-            blockedWebsites = selectedWebsites,
-            selectedWebsitesCount = selectedWebsites.size
-        )
 
-        // Save websites to preferences for the session
-        websitePrefs.edit()
-            .putStringSet(selectedWebsitesKey, selectedWebsites)
-            .apply()
-
-        // Now toggle the session
-        toggleSession()
-    }
 
     fun toggleSession() {
         // Check permissions first

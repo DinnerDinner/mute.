@@ -111,7 +111,6 @@ class WebsitesViewModel @Inject constructor(
 
     fun addWebsite() {
         val input = _uiState.value.urlInput.trim()
-        saveSelectedWebsites()
 
         if (!isValidUrl(input)) {
             _uiState.value = _uiState.value.copy(
@@ -168,7 +167,6 @@ class WebsitesViewModel @Inject constructor(
 
     fun toggleWebsiteSelection(url: String) {
         val currentSelected = _uiState.value.selectedWebsites
-        saveSelectedWebsites()
 
         val newSelected = if (currentSelected.contains(url)) {
             currentSelected - url

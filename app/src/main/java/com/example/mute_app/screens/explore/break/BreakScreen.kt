@@ -125,7 +125,7 @@ fun BreakScreen(
                     selectedWebsites = websitesUiState.selectedWebsites,
                     onToggleBlocking = {
                         // Pass both apps and websites to blocking logic
-                        viewModel.toggleSessionWithWebsites(websitesUiState.selectedWebsites)
+                        viewModel.toggleSession()
                     },
                     onNavigateToBlocklist = onNavigateToBlocklist,
                     onBackClick = onBackClick,
@@ -388,9 +388,10 @@ private fun OverviewScreen(
     onToggleBlocking: () -> Unit,
     onNavigateToBlocklist: () -> Unit,
     onBackClick: () -> Unit,
-    onShowPermissions: () -> Unit
+    onShowPermissions: () -> Unit,
 ) {
-    val websitesCount = selectedWebsites.size
+
+
 
     Column(
         modifier = Modifier
@@ -443,7 +444,7 @@ private fun OverviewScreen(
                 )
                 // Websites counter
                 CounterChip(
-                    count = websitesCount,
+                    count = uiState.selectedWebsitesCount,
                     icon = Icons.Default.Language,
                     label = "Sites"
                 )
@@ -459,7 +460,7 @@ private fun OverviewScreen(
             InactiveHeader(
                 onNavigateToBlocklist = onNavigateToBlocklist,
                 needsPermissions = uiState.needsPermissionSetup,
-                hasBlockedItems = uiState.selectedAppsCount > 0 || websitesCount > 0
+                hasBlockedItems = uiState.selectedAppsCount > 0 || uiState.selectedWebsitesCount > 0
             )
         }
 
@@ -474,7 +475,7 @@ private fun OverviewScreen(
         ) {
             MainControlCircle(
                 isActive = uiState.isSessionActive,
-                canStart = !uiState.needsPermissionSetup && (uiState.selectedAppsCount > 0 || websitesCount > 0),
+                canStart = !uiState.needsPermissionSetup && (uiState.selectedAppsCount > 0 || uiState.selectedWebsitesCount > 0),
                 onToggleBlocking = onToggleBlocking
             )
         }

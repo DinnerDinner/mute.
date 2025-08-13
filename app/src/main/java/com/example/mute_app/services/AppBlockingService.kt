@@ -191,6 +191,9 @@ class AppBlockingService : AccessibilityService() {
 
         if (!isSessionActive) return
 
+        val blockedApps = prefs.getStringSet("selected_apps_for_blocking", emptySet()) ?: emptySet()
+        Log.d(TAG, "Blocked apps list: $blockedApps")
+
         if (blockedApps.contains(packageName)) {
             Log.d(TAG, "Blocking app: $packageName")
 
@@ -219,6 +222,9 @@ class AppBlockingService : AccessibilityService() {
         // Check if session is active
         val isSessionActive = prefs.getBoolean("session_active", false)
         if (!isSessionActive) return
+
+        val blockedWebsites = websitePrefs.getStringSet("selected_websites_for_blocking", emptySet()) ?: emptySet()
+        Log.d(TAG, "Blocked websites list: $blockedWebsites")
 
         // Skip if no websites to block
         if (blockedWebsites.isEmpty()) return
@@ -438,7 +444,7 @@ class AppBlockingService : AccessibilityService() {
                     }
 
                     // Also reload from preferences as backup
-                    loadBlockedLists()
+//                    loadBlockedLists()
                 }
                 "com.example.mute_app.CLEAR_BLOCKED_LISTS" -> {
                     Log.d(TAG, "Received CLEAR_BLOCKED_LISTS broadcast")
