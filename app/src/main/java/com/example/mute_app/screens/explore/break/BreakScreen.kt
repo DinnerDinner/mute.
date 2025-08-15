@@ -4,6 +4,7 @@ package com.example.mute_app.screens.explore.`break`
 import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -71,6 +72,9 @@ fun BreakScreen(
     var showTimerPicker by remember { mutableStateOf(false) }
     var selectedHours by remember { mutableStateOf(uiState.savedTimerHours) }
     var selectedMinutes by remember { mutableStateOf(uiState.savedTimerMinutes) }
+
+    // Access options popup state
+    var showAccessOptions by remember { mutableStateOf(false) }
 
     // Update local state when viewModel state changes
     LaunchedEffect(uiState.savedTimerHours, uiState.savedTimerMinutes) {
@@ -184,8 +188,11 @@ fun BreakScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         if (uiState.isSessionActive) {
-                            // State 2: Active Timer
-                            ActiveTimerState(timeRemaining = uiState.timeRemaining)
+                            // State 2: Active Timer with circular progress
+                            ActiveTimerState(
+                                timeRemaining = uiState.timeRemaining,
+                                totalTime = uiState.totalTime
+                            )
                         } else {
                             // State 1: Unblocked
                             UnblockedState()
@@ -215,8 +222,8 @@ fun BreakScreen(
                                 modifier = Modifier.weight(1f),
                                 icon = Icons.Default.Key,
                                 title = "Access",
-                                subtitle = "Toggle", // TODO: Get from viewModel
-                                onClick = { /* TODO: Access options */ }
+                                subtitle = getAccessMethodDisplayText(uiState.accessMethod),
+                                onClick = { showAccessOptions = true }
                             )
                         }
 
@@ -262,7 +269,8 @@ fun BreakScreen(
                         selectedWebsitesCount = uiState.selectedWebsitesCount,
                         blockedApps = uiState.blockedApps,
                         blockedWebsites = uiState.blockedWebsites,
-                        timerDuration = formatTimerDuration(selectedHours, selectedMinutes)
+                        timerDuration = formatTimerDuration(selectedHours, selectedMinutes),
+                        accessMethod = getAccessMethodDisplayText(uiState.accessMethod)
                     )
 
                     Spacer(modifier = Modifier.height(32.dp))
@@ -293,6 +301,19 @@ fun BreakScreen(
                         showTimerPicker = false
                     },
                     onDismiss = { showTimerPicker = false }
+                )
+            }
+
+            // Access Options Modal
+            if (showAccessOptions) {
+                AccessOptionsModal(
+                    currentAccessMethod = uiState.accessMethod,
+                    currentPin = uiState.savedPin,
+                    onAccessMethodSelected = { method, pin ->
+                        viewModel.updateAccessMethod(method, pin)
+                        showAccessOptions = false
+                    },
+                    onDismiss = { showAccessOptions = false }
                 )
             }
         }
@@ -342,7 +363,7 @@ fun BreakScreen(
     }
 }
 
-// OLD PERMISSIONS SCREEN FROM THE FIRST CODE - EXACT SAME
+// PERMISSIONS SCREEN - EXACT SAME
 @Composable
 private fun PermissionsScreen(
     uiState: com.example.mute_app.viewmodels.explore.`break`.BreakUiState,
@@ -571,10 +592,15 @@ private fun UnblockedState() {
 }
 
 @Composable
-private fun ActiveTimerState(timeRemaining: Long) {
+private fun ActiveTimerState(timeRemaining: Long, totalTime: Long = 25 * 60 * 1000L) {
     val minutes = (timeRemaining / 1000 / 60) % 60
     val seconds = (timeRemaining / 1000) % 60
     val hours = (timeRemaining / 1000 / 60 / 60)
+
+    // Calculate progress (0f to 1f, where 1f is complete)
+    val progress = if (totalTime > 0) {
+        1f - (timeRemaining.toFloat() / totalTime.toFloat())
+    } else 0f
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -589,20 +615,53 @@ private fun ActiveTimerState(timeRemaining: Long) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Large countdown timer
-        Text(
-            text = if (hours > 0) {
-                String.format("%02d:%02d:%02d", hours, minutes, seconds)
-            } else {
-                String.format("%02d:%02d", minutes, seconds)
-            },
-            fontSize = 48.sp,
-            fontWeight = FontWeight.Bold,
-            color = WellnessColors.Success,
-            textAlign = TextAlign.Center
-        )
+        // Circular Progress with Timer
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(200.dp)
+        ) {
+            // Background circle (gray outline)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    color = WellnessColors.Inactive.copy(alpha = 0.3f),
+                    radius = size.minDimension / 2 - 8.dp.toPx(),
+                    style = Stroke(width = 8.dp.toPx())
+                )
+            }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            // Progress arc (pink shadow)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 8.dp.toPx()
+                val radius = size.minDimension / 2 - strokeWidth
+                val sweepAngle = progress * 360f
+
+                drawArc(
+                    color = Color(0xFFE91E63), // Pink color
+                    startAngle = -90f, // Start from top
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = StrokeCap.Round
+                    )
+                )
+            }
+
+            // Timer text in center
+            Text(
+                text = if (hours > 0) {
+                    String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                } else {
+                    String.format("%02d:%02d", minutes, seconds)
+                },
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Bold,
+                color = WellnessColors.Success,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "Blocking Active",
@@ -720,7 +779,8 @@ private fun SummarySection(
     selectedWebsitesCount: Int,
     blockedApps: Set<String>,
     blockedWebsites: Set<String>,
-    timerDuration: String
+    timerDuration: String,
+    accessMethod: String
 ) {
     Card(
         modifier = Modifier
@@ -767,7 +827,7 @@ private fun SummarySection(
                 )
             }
 
-            // Placeholder items for timer and access method
+            // Timer and access method
             if (selectedAppsCount > 0 || selectedWebsitesCount > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 SummaryItem(
@@ -781,7 +841,7 @@ private fun SummarySection(
                 SummaryItem(
                     icon = Icons.Default.Key,
                     title = "Access Method",
-                    items = listOf("Toggle mode"), // TODO: Get from viewModel
+                    items = listOf(accessMethod),
                     hasMore = false
                 )
             }
@@ -885,6 +945,304 @@ private fun formatTimerDuration(hours: Int, minutes: Int): String {
         hours == 0 -> "${minutes}m"
         minutes == 0 -> "${hours}h"
         else -> "${hours}h ${minutes}m"
+    }
+}
+
+// Helper function to get access method display text
+private fun getAccessMethodDisplayText(accessMethod: String): String {
+    return when (accessMethod) {
+        "timer_only" -> "Timer Only"
+        "pin_code" -> "PIN Code"
+        "free_access" -> "Free Access"
+        else -> "Timer Only"
+    }
+}
+
+@Composable
+private fun AccessOptionsModal(
+    currentAccessMethod: String,
+    currentPin: String,
+    onAccessMethodSelected: (method: String, pin: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedMethod by remember { mutableStateOf(currentAccessMethod) }
+    var pinCode by remember { mutableStateOf(currentPin) }
+    var showPinInput by remember { mutableStateOf(false) }
+
+    // Background overlay
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f) // 90% width as requested
+                .fillMaxHeight(0.85f) // 85% height to show we're still on same screen
+                .clickable { }, // Prevent click-through
+            colors = CardDefaults.cardColors(
+                containerColor = WellnessColors.Surface
+            ),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp)
+            ) {
+                // Header
+                Text(
+                    text = "Access Options:",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = WellnessColors.OnSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Text(
+                    text = "Choose how you want to control blocking sessions",
+                    fontSize = 14.sp,
+                    color = WellnessColors.OnSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+
+                // Scrollable options list
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        AccessOptionCard(
+                            title = "Timer Only",
+                            description = "Most strict - cannot stop until timer expires",
+                            isSelected = selectedMethod == "timer_only",
+                            onSelect = {
+                                selectedMethod = "timer_only"
+                                pinCode = ""
+                                showPinInput = false
+                            }
+                        )
+                    }
+
+                    item {
+                        AccessOptionCard(
+                            title = "PIN Code",
+                            description = "Requires PIN to stop session early",
+                            isSelected = selectedMethod == "pin_code",
+                            onSelect = {
+                                selectedMethod = "pin_code"
+                                showPinInput = true
+                            }
+                        )
+
+                        // PIN input field (shown when PIN Code is selected)
+                        AnimatedVisibility(
+                            visible = selectedMethod == "pin_code",
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(top = 12.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = pinCode,
+                                    onValueChange = { newPin ->
+                                        // Only allow numbers and max 4 digits
+                                        if (newPin.length <= 4 && newPin.all { it.isDigit() }) {
+                                            pinCode = newPin
+                                        }
+                                    },
+                                    label = { Text("Enter 4-digit PIN") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = WellnessColors.Primary,
+                                        focusedLabelColor = WellnessColors.Primary,
+                                        cursorColor = WellnessColors.Primary
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    singleLine = true,
+                                    placeholder = { Text("0000") }
+                                )
+
+                                Text(
+                                    text = "This PIN will be required to stop sessions early",
+                                    fontSize = 12.sp,
+                                    color = WellnessColors.OnSurface.copy(alpha = 0.6f),
+                                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        AccessOptionCard(
+                            title = "Free Access",
+                            description = "Can freely start and stop blocking sessions",
+                            isSelected = selectedMethod == "free_access",
+                            onSelect = {
+                                selectedMethod = "free_access"
+                                pinCode = ""
+                                showPinInput = false
+                            }
+                        )
+                    }
+
+                    // Coming Soon section
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = WellnessColors.Inactive.copy(alpha = 0.1f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    Icons.Default.Schedule,
+                                    contentDescription = "Coming soon",
+                                    tint = WellnessColors.Inactive,
+                                    modifier = Modifier.size(32.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = "More Options Coming Soon...",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = WellnessColors.Inactive,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Text(
+                                    text = "Biometric unlock, timed intervals, and more!",
+                                    fontSize = 12.sp,
+                                    color = WellnessColors.Inactive.copy(alpha = 0.7f),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Action buttons
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = 24.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = WellnessColors.OnSurface
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            // Validate PIN if PIN Code method is selected
+                            val finalPin = if (selectedMethod == "pin_code") {
+                                if (pinCode.length == 4) pinCode else currentPin
+                            } else ""
+
+                            onAccessMethodSelected(selectedMethod, finalPin)
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = selectedMethod != "pin_code" || pinCode.length == 4,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WellnessColors.Primary,
+                            disabledContainerColor = WellnessColors.Inactive.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Save Changes")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccessOptionCard(
+    title: String,
+    description: String,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected)
+                WellnessColors.Primary.copy(alpha = 0.15f)
+            else
+                WellnessColors.Surface.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        border = if (isSelected)
+            BorderStroke(2.dp, WellnessColors.Primary)
+        else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = WellnessColors.OnSurface
+                )
+
+                Text(
+                    text = description,
+                    fontSize = 14.sp,
+                    color = WellnessColors.OnSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            // Radio button indicator
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isSelected) WellnessColors.Primary
+                        else WellnessColors.Inactive.copy(alpha = 0.3f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
