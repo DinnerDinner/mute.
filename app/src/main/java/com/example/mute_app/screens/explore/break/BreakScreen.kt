@@ -254,7 +254,7 @@ fun BreakScreen(
                         ControlButton(
                             modifier = Modifier.fillMaxWidth(),
                             icon = Icons.Default.Settings,
-                            title = "More Options",
+                            title = "More Options...",
                             subtitle = "Advanced settings",
                             onClick = { /* TODO: More options */ },
                             isFullWidth = true
