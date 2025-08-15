@@ -67,13 +67,16 @@ fun BreakScreen(
     val websitesUiState by websitesViewModel.uiState.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
-    // Timer picker state
+    // Timer picker state - Initialize with saved values from viewModel
     var showTimerPicker by remember { mutableStateOf(false) }
-    var selectedHours by remember { mutableStateOf(0) }
-    var selectedMinutes by remember { mutableStateOf(25) } // Default 25 minutes
+    var selectedHours by remember { mutableStateOf(uiState.savedTimerHours) }
+    var selectedMinutes by remember { mutableStateOf(uiState.savedTimerMinutes) }
 
-    // Calculate total milliseconds for timer
-    val timerDurationMs = (selectedHours * 60 + selectedMinutes) * 60 * 1000L
+    // Update local state when viewModel state changes
+    LaunchedEffect(uiState.savedTimerHours, uiState.savedTimerMinutes) {
+        selectedHours = uiState.savedTimerHours
+        selectedMinutes = uiState.savedTimerMinutes
+    }
 
     // Load counts when screen appears
     LaunchedEffect(Unit) {
@@ -130,144 +133,149 @@ fun BreakScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
             ) {
-                // Header with back button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = WellnessColors.OnSurface
-                        )
-                    }
-
-                    Text(
-                        text = "break.",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = WellnessColors.OnSurface
-                    )
-
-                    // Permissions indicator - keep the warning triangle
-                    IconButton(onClick = viewModel::refreshPermissions) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Refresh permissions",
-                            tint = WellnessColors.Accent,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                // TOP SECTION (40% height) - Dynamic State
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(320.dp)
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (uiState.isSessionActive) {
-                        // State 2: Active Timer
-                        ActiveTimerState(timeRemaining = uiState.timeRemaining)
-                    } else {
-                        // State 1: Unblocked
-                        UnblockedState()
-                    }
-                }
-
-                // MIDDLE SECTION (50% height) - Control Buttons
+                // Scrollable content
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                        .padding(bottom = 80.dp) // Add padding for pinned button
                 ) {
-                    // Row 1: Timer & Access Options
+                    // Header with back button
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ControlButton(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Default.Timer,
-                            title = "Timer",
-                            subtitle = formatTimerDuration(selectedHours, selectedMinutes),
-                            onClick = { showTimerPicker = true }
+                        IconButton(onClick = onBackClick) {
+                            Icon(
+                                Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = WellnessColors.OnSurface
+                            )
+                        }
+
+                        Text(
+                            text = "break.",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WellnessColors.OnSurface
                         )
+
+                        // Permissions indicator - keep the warning triangle
+                        IconButton(onClick = viewModel::refreshPermissions) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Refresh permissions",
+                                tint = WellnessColors.Accent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // TOP SECTION (40% height) - Dynamic State
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                            .padding(horizontal = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (uiState.isSessionActive) {
+                            // State 2: Active Timer
+                            ActiveTimerState(timeRemaining = uiState.timeRemaining)
+                        } else {
+                            // State 1: Unblocked
+                            UnblockedState()
+                        }
+                    }
+
+                    // MIDDLE SECTION - Control Buttons (Reduced height)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Row 1: Timer & Access Options
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ControlButton(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Timer,
+                                title = "Timer",
+                                subtitle = formatTimerDuration(selectedHours, selectedMinutes),
+                                onClick = { showTimerPicker = true }
+                            )
+                            ControlButton(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Key,
+                                title = "Access",
+                                subtitle = "Toggle", // TODO: Get from viewModel
+                                onClick = { /* TODO: Access options */ }
+                            )
+                        }
+
+                        // Row 2: Apps & Websites
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ControlButton(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Apps,
+                                title = "Apps",
+                                subtitle = "${uiState.selectedAppsCount} selected",
+                                onClick = onNavigateToApps,
+                                hasSelection = uiState.selectedAppsCount > 0
+                            )
+                            ControlButton(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Language,
+                                title = "Websites",
+                                subtitle = "${uiState.selectedWebsitesCount} selected",
+                                onClick = onNavigateToWebsites,
+                                hasSelection = uiState.selectedWebsitesCount > 0
+                            )
+                        }
+
+                        // Row 3: More Options (Full width)
                         ControlButton(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Default.Key,
-                            title = "Access",
-                            subtitle = "Toggle", // TODO: Get from viewModel
-                            onClick = { /* TODO: Access options */ }
+                            modifier = Modifier.fillMaxWidth(),
+                            icon = Icons.Default.Settings,
+                            title = "More Options",
+                            subtitle = "Advanced settings",
+                            onClick = { /* TODO: More options */ },
+                            isFullWidth = true
                         )
                     }
 
-                    // Row 2: Apps & Websites
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ControlButton(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Default.Apps,
-                            title = "Apps",
-                            subtitle = "${uiState.selectedAppsCount} selected",
-                            onClick = onNavigateToApps,
-                            hasSelection = uiState.selectedAppsCount > 0
-                        )
-                        ControlButton(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Default.Language,
-                            title = "Websites",
-                            subtitle = "${uiState.selectedWebsitesCount} selected",
-                            onClick = onNavigateToWebsites,
-                            hasSelection = uiState.selectedWebsitesCount > 0
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                    // Row 3: More Options (Full width)
-                    ControlButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        icon = Icons.Default.Settings,
-                        title = "More Options",
-                        subtitle = "Advanced settings",
-                        onClick = { /* TODO: More options */ },
-                        isFullWidth = true
+                    // SUMMARY SECTION (Scrollable preview)
+                    SummarySection(
+                        selectedAppsCount = uiState.selectedAppsCount,
+                        selectedWebsitesCount = uiState.selectedWebsitesCount,
+                        blockedApps = uiState.blockedApps,
+                        blockedWebsites = uiState.blockedWebsites,
+                        timerDuration = formatTimerDuration(selectedHours, selectedMinutes)
                     )
+
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // SUMMARY SECTION (Scrollable preview)
-                SummarySection(
-                    selectedAppsCount = uiState.selectedAppsCount,
-                    selectedWebsitesCount = uiState.selectedWebsitesCount,
-                    blockedApps = uiState.blockedApps,
-                    blockedWebsites = uiState.blockedWebsites,
-                    timerDuration = formatTimerDuration(selectedHours, selectedMinutes)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // BOTTOM SECTION - Start/Stop Button
+                // PINNED BOTTOM BUTTON - Start/Stop Button
                 StartStopButton(
                     isActive = uiState.isSessionActive,
                     canStart = !uiState.needsPermissionSetup &&
                             (uiState.selectedAppsCount > 0 || uiState.selectedWebsitesCount > 0),
                     onToggle = viewModel::toggleSession,
-                    modifier = Modifier.padding(horizontal = 24.dp)
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
                 )
-
-                Spacer(modifier = Modifier.height(32.dp))
             }
 
             // Timer Picker Modal
@@ -280,15 +288,7 @@ fun BreakScreen(
                         selectedMinutes = minutes
 
                         // Update viewModel with new timer duration
-                        val newDurationMs = (hours * 60 + minutes) * 60 * 1000L
-                        if (newDurationMs > 0) {
-                            // Update the viewModel's timer (you might need to add this method)
-                            // For now, we'll use the existing changeMode but this needs proper integration
-                            viewModel.changeMode("Custom")
-
-                            // TODO: You'll need to add a method like viewModel.setCustomTimer(newDurationMs)
-                            // to properly set the timer duration
-                        }
+                        viewModel.updateTimerDuration(hours, minutes)
 
                         showTimerPicker = false
                     },
@@ -671,32 +671,41 @@ private fun ControlButton(
                 }
             }
         } else {
+            // MODIFIED: Reduced height by putting icon and title on same line
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(16.dp), // Reduced padding
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    icon,
-                    contentDescription = title,
-                    modifier = Modifier.size(28.dp),
-                    tint = if (hasSelection) WellnessColors.Success else WellnessColors.Accent
-                )
+                // Icon and title on same line
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = title,
+                        modifier = Modifier.size(20.dp), // Slightly smaller icon
+                        tint = if (hasSelection) WellnessColors.Success else WellnessColors.Accent
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = WellnessColors.OnSurface,
-                    textAlign = TextAlign.Center
-                )
+                    Text(
+                        text = title,
+                        fontSize = 14.sp, // Slightly smaller title
+                        fontWeight = FontWeight.Medium,
+                        color = WellnessColors.OnSurface,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp)) // Reduced spacing
 
                 Text(
                     text = subtitle,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp, // Smaller subtitle
                     color = WellnessColors.OnSurface.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
                 )
@@ -1096,4 +1105,3 @@ private fun PresetButton(
         )
     }
 }
-
