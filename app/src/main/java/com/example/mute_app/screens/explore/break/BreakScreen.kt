@@ -416,7 +416,7 @@ private fun PermissionsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "To function properly, mute. needs these permissions:",
+            text = "To function properly, mute. needs these permissions: ",
             fontSize = 18.sp,
             color = WellnessColors.OnSurface,
             textAlign = TextAlign.Center
